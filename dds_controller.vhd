@@ -13,7 +13,9 @@ ENTITY dds_controller IS
 			dds_io_update_pin: OUT STD_LOGIC;
 			dds_sclk_pin: OUT STD_LOGIC;
 			dds_profile_pins: OUT STD_LOGIC_VECTOR (2 DOWNTO 0);
-			dds_cs: OUT STD_LOGIC);
+			dds_cs: OUT STD_LOGIC;
+			dac_wr_pin: OUT STD_LOGIC;
+			dac_control_pins: OUT STD_LOGIC_VECTOR(15 downto 0));
 END dds_controller;
 
 ARCHITECTURE behavior OF dds_controller IS
@@ -25,8 +27,8 @@ ARCHITECTURE behavior OF dds_controller IS
 	SIGNAL aux_profile_io_reset: STD_LOGIC;
 	SIGNAL aux_profile_io_update: STD_LOGIC;
 	SIGNAL aux_profile_sclk: STD_LOGIC;
-	SIGNAL aux_profile_master_reset: STD_LOGIC;
 	SIGNAL aux_profile_write_complete: STD_LOGIC;
+	SIGNAL aux_profile_master_reset: STD_LOGIC;
 	
 	SIGNAL aux_ftw_sdo: STD_LOGIC_VECTOR (1 DOWNTO 0);
 	SIGNAL aux_ftw_io_update: STD_LOGIC;
@@ -39,6 +41,7 @@ ARCHITECTURE behavior OF dds_controller IS
 	SIGNAL aux_ram_io_update: STD_LOGIC;
 	SIGNAL aux_ram_io_reset: STD_LOGIC;
 	SIGNAL aux_RAM_write_complete: STD_LOGIC;
+	SIGNAL aux_ram_async_reset: STD_LOGIC;
 	
 	COMPONENT top_profilecontrol_writer
 		PORT (top_clk: IN STD_LOGIC;
@@ -96,10 +99,8 @@ BEGIN
 					 io_update => aux_ftw_io_update,
 					 finish_flag => aux_ftw_write_complete);
 	
-	aux_profile_master_reset <= NOT aux_RAM_write_complete;
-	aux_ftw_reset <= NOT aux_profile_write_complete;
-	
 	dds_cs <= '0';
+	dac_control_pins <= b"1111111111111111";
 	
 	PROCESS (dds_clk, dds_reset, aux_RAM_write_complete)
 	BEGIN
@@ -110,7 +111,7 @@ BEGIN
 				WHEN standby => 
 					IF (dds_reset = '0') THEN 
 						state <= write_RAM;
-						--state <= write_profiles;
+						state <= write_profiles;
 					ELSE state <= standby;
 					END IF;
 				WHEN write_RAM => 
@@ -141,27 +142,59 @@ BEGIN
 				dds_io_reset_pin <= '1';
 				dds_io_update_pin <= '0';
 				dds_sclk_pin <= '0';
+				dac_wr_pin <= '1';
 			WHEN write_RAM =>
 				dds_sdo_pin <= aux_ram_sdo;
 				dds_io_reset_pin <= aux_ram_io_reset;
 				dds_io_update_pin <= aux_ram_io_update;
 				dds_sclk_pin <= aux_ram_sclk;
+				dac_wr_pin <= '0';
 			WHEN write_profiles =>
 				dds_sdo_pin <= aux_profile_sdo;
 				dds_io_reset_pin <= aux_profile_io_reset;
 				dds_io_update_pin <= aux_profile_io_update;
 				dds_sclk_pin <= aux_profile_sclk;
+				dac_wr_pin <= '0';
 			WHEN write_ftw =>
 				dds_sdo_pin <= aux_ftw_sdo;
 				dds_io_reset_pin <= '0';
 				dds_io_update_pin <= aux_ftw_io_update;
 				dds_sclk_pin <= aux_ftw_sclk;
+				dac_wr_pin <= '0';
 			WHEN finish =>
 				dds_sdo_pin <= B"00";
 				dds_io_reset_pin <= '1';
 				dds_io_update_pin <= '0';
 				dds_sclk_pin <= '0';
 				dds_profile_pins <= profile_select;
+				dac_wr_pin <= '0';
+		END CASE;
+	END PROCESS;
+	
+	-- Enable/disable components
+	PROCESS (state)
+	BEGIN
+		CASE state IS
+			WHEN standby =>
+				aux_ram_async_reset <= '1';
+				aux_profile_master_reset <= '1';
+				aux_ftw_reset <= '1';
+			WHEN write_RAM =>
+				aux_ram_async_reset <= '0';
+				aux_profile_master_reset <= '1';
+				aux_ftw_reset <= '1';
+			WHEN write_profiles =>
+				aux_ram_async_reset <= '1';
+				aux_profile_master_reset <= '0';
+				aux_ftw_reset <= '1';
+			WHEN write_ftw =>
+				aux_ram_async_reset <= '1';
+				aux_profile_master_reset <= '1';
+				aux_ftw_reset <= '0';
+			WHEN finish =>
+				aux_ram_async_reset <= '1';
+				aux_profile_master_reset <= '1';
+				aux_ftw_reset <= '1';
 		END CASE;
 	END PROCESS;
 END behavior;

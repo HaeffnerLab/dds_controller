@@ -56,6 +56,8 @@ BEGIN
 		PORT MAP (address => aux_ROM_address,
 					 clock => top_clk,
 					 q => aux_ROM_data_out);
+					 
+	top_io_update_pin <= aux_finish_flag;
 	
 	PROCESS (top_clk, top_async_clear)
 	BEGIN
@@ -96,37 +98,28 @@ BEGIN
 	
 	aux_parallel_profiledata_in <= aux_ROM_data_out;
 
-	
 	signal_assignments: PROCESS (state)
 	BEGIN
 		CASE state IS 
 			WHEN standby =>
 				aux_reset <= '1';
 				top_io_reset_pin <= '1';
-				top_io_update_pin <= '0';
 				top_profile_write_complete <= '0';
 			WHEN wait_state => 
 				aux_reset <= '1';
 				top_io_reset_pin <= '0';
-				top_io_update_pin <= '0';
 				top_profile_write_complete <= '0';
 			WHEN read_ROM => 
 				aux_reset <= '1';
 				top_io_reset_pin <= '0';
-				top_io_update_pin <= '0';
 				top_profile_write_complete <= '0';
 			WHEN data_transfer =>
 				aux_reset <= '0';
 				top_io_reset_pin <= '0';
 				top_profile_write_complete <= '0';
-				IF aux_finish_flag = '1' THEN
-					top_io_update_pin <= '1';
-				ELSE top_io_update_pin <= '0';
-				END IF;
 			WHEN finish =>
 				top_io_reset_pin <= '1';
 				aux_reset <= '1';
-				top_io_update_pin <= '1';
 				top_profile_write_complete <= '1';
 		END CASE;
 	END PROCESS;
