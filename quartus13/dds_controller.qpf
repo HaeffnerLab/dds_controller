@@ -1,6 +1,6 @@
 # -------------------------------------------------------------------------- #
 #
-# Copyright (C) 1991-2011 Altera Corporation
+# Copyright (C) 1991-2013 Altera Corporation
 # Your use of Altera Corporation's design tools, logic functions 
 # and other software and tools, and its AMPP partner logic 
 # functions, and any output files from any of the foregoing 
@@ -16,16 +16,15 @@
 #
 # -------------------------------------------------------------------------- #
 #
-# Quartus II 32-bit
-# Version 11.1 Build 173 11/01/2011 SJ Web Edition
-# Date created = 15:40:16  July 07, 2014
+# Quartus II 64-Bit
+# Version 13.0.1 Build 232 06/12/2013 Service Pack 1 SJ Web Edition
+# Date created = 22:43:29  February 23, 2015
 #
 # -------------------------------------------------------------------------- #
 
-QUARTUS_VERSION = "11.1"
-DATE = "15:40:16  July 07, 2014"
+QUARTUS_VERSION = "13.0"
+DATE = "22:43:29  February 23, 2015"
 
 # Revisions
 
-PROJECT_REVISION = "profileandcontrol_writer"
-PROJECT_REVISION = "profileandcontrol_writertest"
+PROJECT_REVISION = "dds_controller"
