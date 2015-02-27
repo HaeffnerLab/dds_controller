@@ -168,13 +168,13 @@ begin
 				dds_reset     <= '0';
 				dds_sdo       <= aux_control_sdo;
 				dds_sclk      <= aux_control_sclk;
-				dds_io_reset  <= '0';
+				dds_io_reset  <= aux_control_finish_flag;
 				dds_io_update <= '0';
 			when ST_WRITE_PROFILES =>
 				dds_reset     <= '0';
 				dds_sdo       <= aux_profile_sdo;
 				dds_sclk      <= aux_profile_sclk;
-				dds_io_reset  <= '0';
+				dds_io_reset  <= aux_profile_finish_flag;
 				dds_io_update <= '0';
 			when ST_UPDATE =>
 				dds_reset     <= '0';
