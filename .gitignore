@@ -50,6 +50,5 @@ quartus11/db/
 quartus11/incremental_db/
 quartus11/greybox_tmp/
 quartus11/simulation/
-*.qsf
 *.qws
 *.qip
