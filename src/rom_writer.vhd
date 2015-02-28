@@ -17,9 +17,9 @@ entity rom_writer is
 	port (
 		clock:         in std_logic;
 		async_clear:   in std_logic;
-		finish_flag:   out std_logic;
 		dds_sclk:      out std_logic;
-		dds_sdo:       out std_logic
+		dds_sdo:       out std_logic;
+		finish_flag:   out std_logic -- Active high
 	);
 end rom_writer;
 
@@ -34,7 +34,6 @@ architecture behavior of rom_writer is
 
 	signal aux_p2s_reset:  std_logic;
 	signal aux_p2s_pdi:    std_logic_vector(ROM_DATA_WIDTH - 1 downto 0);
-	signal aux_p2s_active: std_logic;
 	signal aux_p2s_finish: std_logic;
 
 	signal aux_rom_addr: std_logic_vector(ROM_ADDRESS_WIDTH - 1 downto 0);
@@ -50,7 +49,6 @@ architecture behavior of rom_writer is
 			pdi:         in std_logic_vector(DATA_WIDTH - 1 downto 0);
 			sclk:        out std_logic;
 			sdo:         out std_logic;
-			active_flag: out std_logic;
 			finish_flag: out std_logic
 		);
 	end component;
@@ -79,7 +77,6 @@ begin
 		pdi         => aux_p2s_pdi,
 		sclk        => dds_sclk,
 		sdo         => dds_sdo,
-		active_flag => aux_p2s_active,
 		finish_flag => aux_p2s_finish
 	);
 	

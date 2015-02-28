@@ -16,7 +16,6 @@ entity p2s_bus is
 		pdi:         in std_logic_vector(DATA_WIDTH - 1 downto 0);
 		sclk:        out std_logic;
 		sdo:         out std_logic; -- Serial data out
-		active_flag: out std_logic; -- Active high
 		finish_flag: out std_logic -- Active high
 	);
 end p2s_bus;
@@ -51,7 +50,6 @@ begin
 			state        <= ST_RESET;
 			sclk_sync    := '0';
 			sclk         <= '0';
-			active_flag  <= '0';
 			finish_flag  <= '0';
 			bits_written := 0;
 			sdo          <= pdi(DATA_WIDTH - 1);
@@ -62,7 +60,6 @@ begin
 				state        <= ST_WRiTE;
 				sclk_sync    := '0';
 				sclk         <= '0';
-				active_flag  <= '0';
 				finish_flag  <= '0';
 				bits_written := 0;
 				sdo          <= pdi(DATA_WIDTH - 1);
@@ -88,7 +85,6 @@ begin
 					end if;
 					sclk_sync := '0';
 					sclk      <= '0';
-					active_flag <= '1';
 				end if;
 			end case;
 		end if;
