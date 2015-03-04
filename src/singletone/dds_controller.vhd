@@ -83,7 +83,7 @@ begin
 		ROM_DATA_WIDTH => DDS_WORD_WIDTH + DDS_ADDR_WIDTH,
 		ROM_ADDRESS_WIDTH => 2,
 		ROM_DEPTH => 3,
-		ROM_INIT_FILE => "../data/control_function_data.mif"
+		ROM_INIT_FILE => "../../data/control_function_data.mif"
 	)
 	port map (
 		clock         => clock,
@@ -98,7 +98,7 @@ begin
 		ROM_DATA_WIDTH => 2 * DDS_WORD_WIDTH + DDS_ADDR_WIDTH,
 		ROM_ADDRESS_WIDTH => 3,
 		ROM_DEPTH => 8,
-		ROM_INIT_FILE => "../data/profile_data.mif"
+		ROM_INIT_FILE => "../../data/profile_data.mif"
 	)
 	port map (
 		clock         => clock,
