@@ -1,11 +1,11 @@
-WIDTH=40;
-DEPTH=3;
+width=40;
+depth=3;
 
-ADDRESS_RADIX=HEX;
-DATA_RADIX=HEX;
+address_radix=hex;
+data_radix=hex;
 
-CONTENT BEGIN
-	0  :   0000000000;
-	1  :   0100000000;
-	2  :   021F3FC000;
-END;
+content begin
+	0  :   0080000000;
+	1  :   0100400820;
+	2  :   021f3fc000;
+end;
