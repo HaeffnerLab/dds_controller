@@ -1,4 +1,4 @@
-<session jtag_chain="USB-Blaster [3-1]" jtag_device="@1: EP2C5 (0x020B10DD)" sof_file="dds_controller.sof">
+<session jtag_chain="USB-Blaster [3-2]" jtag_device="@1: EP2C(15|20) (0x020B30DD)" sof_file="dds_controller.sof">
   <display_tree gui_logging_enabled="0">
     <display_branch instance="auto_signaltap_0" log="USE_GLOBAL_TEMP" signal_set="USE_GLOBAL_TEMP" trigger="USE_GLOBAL_TEMP"/>
   </display_tree>
@@ -56,7 +56,7 @@
         <trigger_in_editor bit_condition="falling edge" instance_name="reset" is_enabled="true" is_hps_event_selected="false" is_hps_trigger_in_selected="false" is_instance_selected="false" is_node_selected="true" is_pin_selected="false" node_name="reset" pin_name="auto_stp_trigger_in_auto_signaltap_0"/>
         <trigger_out_editor/>
       </presentation>
-      <trigger CRC="19B9D36B" attribute_mem_mode="false" gap_record="true" global_temp="1" is_expanded="true" name="trigger: 2015/03/09 18:31:47  #1" position="pre" power_up_trigger_mode="false" record_data_gap="true" segment_size="512" storage_mode="off" storage_qualifier_disabled="no" storage_qualifier_port_is_pin="false" storage_qualifier_port_name="auto_stp_external_storage_qualifier" storage_qualifier_port_tap_mode="classic" trigger_in="falling edge" trigger_type="circular">
+      <trigger CRC="19B9D36B" attribute_mem_mode="false" gap_record="true" global_temp="1" is_expanded="true" name="trigger: 2015/03/09 18:31:47  #1" position="pre" power_up_trigger_mode="false" record_data_gap="true" segment_size="512" storage_mode="off" storage_qualifier_disabled="no" storage_qualifier_port_is_pin="true" storage_qualifier_port_name="auto_stp_external_storage_qualifier" storage_qualifier_port_tap_mode="classic" trigger_in="falling edge" trigger_type="circular">
         <power_up_trigger position="pre" storage_qualifier_disabled="no" trigger_in="dont_care"/>
         <events use_custom_flow_control="no">
           <level enabled="yes" name="condition1" type="basic">

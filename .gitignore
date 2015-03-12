@@ -51,3 +51,8 @@ stp2_auto_stripped.stp
 *.done
 *.rpt
 *.summary
+*.smsg
+*.jdi
+*.pin
+*.pof
+*.sof

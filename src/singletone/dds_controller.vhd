@@ -61,24 +61,8 @@ architecture behavior of dds_controller is
 	signal aux_control_io_reset:    std_logic;
 	signal aux_control_io_update:   std_logic;
 	signal aux_control_finish_flag: std_logic;
-
-	component rom_writer
-		generic (
-			ROM_DATA_WIDTH:    natural;
-			ROM_ADDRESS_WIDTH: natural;
-			ROM_DEPTH:         natural;
-			ROM_INIT_FILE:     string
-		);
-		port (
-			clock:       in std_logic;
-			async_clear: in std_logic;
-			finish_flag: out std_logic;
-			dds_sclk:    out std_logic;
-			dds_sdo:     out std_logic
-		);
-	end component;
 begin
-	control_writer: rom_writer
+	control_writer: entity work.rom_writer
 	generic map (
 		ROM_DATA_WIDTH => DDS_WORD_WIDTH + DDS_ADDR_WIDTH,
 		ROM_ADDRESS_WIDTH => 2,
@@ -93,7 +77,7 @@ begin
 		dds_sdo       => aux_control_sdo
 	);
 
-	profile_writer: rom_writer
+	profile_writer: entity work.rom_writer
 	generic map (
 		ROM_DATA_WIDTH => 2 * DDS_WORD_WIDTH + DDS_ADDR_WIDTH,
 		ROM_ADDRESS_WIDTH => 3,

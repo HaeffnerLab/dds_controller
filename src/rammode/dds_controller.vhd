@@ -74,38 +74,8 @@ architecture behavior of dds_controller is
 	signal aux_ftw_sclk:        std_logic;
 	signal aux_ftw_reset:       std_logic;
 	signal aux_ftw_finish_flag: std_logic;
-
-	component rom_writer
-		generic (
-			ROM_DATA_WIDTH:    natural;
-			ROM_ADDRESS_WIDTH: natural;
-			ROM_DEPTH:         natural;
-			ROM_INIT_FILE:     string
-		);
-		port (
-			clock:       in std_logic;
-			async_clear: in std_logic;
-			finish_flag: out std_logic;
-			dds_sclk:    out std_logic;
-			dds_sdo:     out std_logic
-		);
-	end component;
-
-	component p2s_bus
-		generic (
-			DATA_WIDTH: natural
-		);
-		port (
-			clock:       in std_logic;
-			reset:       in std_logic;
-			pdi:         in std_logic_vector(DATA_WIDTH - 1 downto 0);
-			sclk:        out std_logic;
-			sdo:         out std_logic;
-			finish_flag: out std_logic
-		);
-	end component;
 begin
-	profile_writer: rom_writer
+	profile_writer: entity work.rom_writer
 	generic map (
 		ROM_DATA_WIDTH => 2 * DDS_WORD_WIDTH + DDS_ADDR_WIDTH,
 		ROM_ADDRESS_WIDTH => 3,
@@ -120,7 +90,8 @@ begin
 		dds_sdo       => aux_profile_sdo
 	);
 
-	ram_addr_witer: p2s_bus
+	-- TODO: replace with "instruction_writer" and "ST_WRITE_INSTRUCTION"
+	ram_addr_witer: entity work.p2s_bus
 	generic map (
 		DATA_WIDTH => DDS_ADDR_WIDTH
 	)
@@ -133,12 +104,14 @@ begin
 		finish_flag => aux_ram_addr_finish_flag
 	);
 
-	ram_writer: rom_writer
+	ram_writer: entity work.rom_writer
 	generic map (
-		ROM_DATA_WIDTH => DDS_WORD_WIDTH,
+		ROM_DATA_WIDTH    => DDS_WORD_WIDTH,
 		ROM_ADDRESS_WIDTH => 10,
-		ROM_DEPTH => 1024,
-		ROM_INIT_FILE => "../data/ram_data.mif"
+		ROM_DEPTH         => 1024,
+		ROM_INIT_FILE     => "../data/ram_data.mif",
+		BURST_COUNT       => 40,
+		BURST_PAUSE       => 1
 	)
 	port map (
 		clock         => clock,
@@ -148,12 +121,12 @@ begin
 		dds_sdo       => aux_ram_sdo
 	);
 
-	control_writer: rom_writer
+	control_writer: entity work.rom_writer
 	generic map (
-		ROM_DATA_WIDTH => DDS_WORD_WIDTH + DDS_ADDR_WIDTH,
+		ROM_DATA_WIDTH    => DDS_WORD_WIDTH + DDS_ADDR_WIDTH,
 		ROM_ADDRESS_WIDTH => 2,
-		ROM_DEPTH => 3,
-		ROM_INIT_FILE => "../data/control_function_data.mif"
+		ROM_DEPTH         => 3,
+		ROM_INIT_FILE     => "../data/control_function_data.mif"
 	)
 	port map (
 		clock         => clock,
@@ -163,7 +136,7 @@ begin
 		dds_sdo       => aux_control_sdo
 	);
 
-	ftw_writer: p2s_bus
+	ftw_writer: entity work.p2s_bus
 	generic map (
 		DATA_WIDTH => DDS_WORD_WIDTH + DDS_ADDR_WIDTH
 	)
