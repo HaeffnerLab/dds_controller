@@ -109,9 +109,7 @@ begin
 		ROM_DATA_WIDTH    => DDS_WORD_WIDTH,
 		ROM_ADDRESS_WIDTH => 10,
 		ROM_DEPTH         => 1024,
-		ROM_INIT_FILE     => "../data/ram_data.mif",
-		BURST_COUNT       => 40,
-		BURST_PAUSE       => 1
+		ROM_INIT_FILE     => "../data/ram_data.mif"
 	)
 	port map (
 		clock         => clock,

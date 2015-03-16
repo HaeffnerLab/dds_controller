@@ -5,7 +5,7 @@ address_radix=hex;
 data_radix=hex;
 
 content begin
-	0  :   0080000000;
+	0  :   00C0000000;
 	1  :   0100400820;
 	2  :   021f3fc000;
 end;

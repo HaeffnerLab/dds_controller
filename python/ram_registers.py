@@ -40,21 +40,26 @@ para_hold_last = Bitmask(label="data assembler hold last", width=1, shift=6, val
 divider_bypass = Bitmask(label="divider_bypass", width=1, shift=15, value=0)
 divider_reset = Bitmask(label="divider_reset", width=1, shift=14, value=0)
 
-ram_mode = Bitmask(label="ram_mode", width=4, shift=0, value=3)
+ram_mode = Bitmask(label="ram_mode", width=3, shift=0, value=4)
 ram_start = Bitmask(label="ram_start", width=10, shift=14, value=0) #CHECK ??
-ram_stop = Bitmask(label="ram_stop", width=10, shift=30, value=1023) # CHECK ??
-ram_step = Bitmask(label="ram_step", width=16, shift=40, value=50) # CHECK ??
+ram_stop = Bitmask(label="ram_stop", width=10, shift=30, value=79) # CHECK ??
+ram_step = Bitmask(label="ram_step", width=16, shift=40, value=1250) # CHECK ??
 
 CFR1 = 0
 CFR2 = 1
 CFR3 = 2
-RAM0 = 8
 
-register_list = [CFR1,CFR2,CFR3,RAM0]
+RAMLIST = []
+for i in range(8):
+    RAM0 = 0xe + i
+    print RAM0
+    RAMLIST.append(RAM0)
+
+register_list = [CFR1,CFR2,CFR3] + RAMLIST
 
 """Format: filename, [[registers],width]"""
 fn_dict = {'cfr_data.mif' : [[CFR1,CFR2,CFR3],32],
-           'prof_data.mif' : [[RAM0],64]}
+           '../data/profile_data.mif' : [RAMLIST,64]}
 
 reg_bitmask_dict = {}
 
@@ -62,7 +67,8 @@ reg_bitmask_dict[CFR1] = [auto_clr, ram_en, ram_dest]
 reg_bitmask_dict[CFR2] = [pdclk_en, para_en,
                           para_gain, para_hold_last]
 reg_bitmask_dict[CFR3] = [divider_bypass, divider_reset]
-reg_bitmask_dict[RAM0] = [ram_mode, ram_start, ram_stop, ram_step]
+for RAM0 in RAMLIST:
+    reg_bitmask_dict[RAM0] = [ram_mode, ram_start, ram_stop, ram_step]
 
 value_dict = {}
 for register in register_list:
@@ -91,7 +97,7 @@ content begin
             val_str = '%0.10X' % val
         else:
             val_str = '%0.18X' % val
-        fh.write(str(rom_addr) + ' : ' + val_str + ' \n')
+        fh.write(str(rom_addr) + ' : ' + val_str + ' ; \n')
         print rom_addr, val_str
         rom_addr += 1
     fh.write('end;')
