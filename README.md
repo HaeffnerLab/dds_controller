@@ -18,3 +18,6 @@ predefined amplitude data; `dev_board` has project files to use with the blue
 Cyclone II development board. The `src` folder separates code based on the
 Quartus project it belongs to: `common` is used across projects, while code in
 other folders correspond to the project the folder is named after.
+
+Be sure to program the device through the SignalTap interface, because that
+always seems to work.
