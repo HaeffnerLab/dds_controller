@@ -26,8 +26,7 @@ def get_mif_footer():
     return "end;\n"
 
 def write_mif(data, path):
-    data_len = len(data)
-    if data_len == 0:
+    if len(data) == 0:
         return
 
     with open(path, 'w') as f:
