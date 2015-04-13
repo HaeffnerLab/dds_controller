@@ -44,12 +44,13 @@ begin
 		DATA_WIDTH => ROM_DATA_WIDTH
 	)
 	port map (
-		clock       => clock,
-		reset       => aux_p2s_reset,
-		pdi         => aux_p2s_pdi,
-		sclk        => dds_sclk,
-		sdo         => dds_sdo,
-		finish_flag => aux_p2s_finish
+		clock  => clock,
+		reset  => aux_p2s_reset,
+		len    => ROM_DATA_WIDTH,
+		pdi    => aux_p2s_pdi,
+		sclk   => dds_sclk,
+		sdo    => dds_sdo,
+		finish => aux_p2s_finish
 	);
 	
 	rom_mf_inst: entity work.rom_mf
