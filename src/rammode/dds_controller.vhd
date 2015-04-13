@@ -124,32 +124,32 @@ architecture behavior of dds_controller is
 	
 	constant ROM_PROFILE_WIDTH:      natural := 2 * DDS_WORD_WIDTH +
 			DDS_ADDR_WIDTH;
-   constant ROM_PROFILE_DEPTH:      natural := 8;
-   constant ROM_PROFILE_ADDR_WIDTH: natural := 3;
+	constant ROM_PROFILE_DEPTH:      natural := 8;
+	constant ROM_PROFILE_ADDR_WIDTH: natural := 3;
 
-   constant ROM_RAM_WIDTH:      natural := DDS_WORD_WIDTH;
-   constant ROM_RAM_DEPTH:      natural := 1024;
-   constant ROM_RAM_ADDR_WIDTH: natural := 10;
+	constant ROM_RAM_WIDTH:      natural := DDS_WORD_WIDTH;
+	constant ROM_RAM_DEPTH:      natural := 1024;
+	constant ROM_RAM_ADDR_WIDTH: natural := 10;
 
-   constant ROM_CONTROL_FN_WIDTH:      natural := DDS_WORD_WIDTH +
-           DDS_ADDR_WIDTH;
-   constant ROM_CONTROL_FN_DEPTH:      natural := 3;
-   constant ROM_CONTROL_FN_ADDR_WIDTH: natural := 2;
+	constant ROM_CONTROL_FN_WIDTH:      natural := DDS_WORD_WIDTH +
+			DDS_ADDR_WIDTH;
+	constant ROM_CONTROL_FN_DEPTH:      natural := 3;
+	constant ROM_CONTROL_FN_ADDR_WIDTH: natural := 2;
 
-   signal aux_rom_profile_addr: std_logic_vector(ROM_PROFILE_ADDR_WIDTH - 1 
-           downto 0) := (others => '0');
-   signal aux_rom_profile_q:    std_logic_vector(ROM_PROFILE_WIDTH - 1 
-           downto 0); 
+	signal aux_rom_profile_addr: std_logic_vector(ROM_PROFILE_ADDR_WIDTH - 1 
+			downto 0) := (others => '0');
+	signal aux_rom_profile_q:    std_logic_vector(ROM_PROFILE_WIDTH - 1 
+			downto 0); 
 
-   signal aux_rom_ram_addr: std_logic_vector(ROM_RAM_ADDR_WIDTH - 1 downto 0)
-           := (others => '0');
-   signal aux_rom_ram_q:    std_logic_vector(ROM_RAM_WIDTH - 1
-           downto 0);
+	signal aux_rom_ram_addr: std_logic_vector(ROM_RAM_ADDR_WIDTH - 1 downto 0)
+			:= (others => '0');
+	signal aux_rom_ram_q:    std_logic_vector(ROM_RAM_WIDTH - 1
+			downto 0);
 
-   signal aux_rom_control_fn_addr: std_logic_vector(ROM_CONTROL_FN_ADDR_WIDTH
-           - 1 downto 0) := (others => '0');
-   signal aux_rom_control_fn_q:    std_logic_vector(ROM_CONTROL_FN_WIDTH - 1
-           downto 0);
+	signal aux_rom_control_fn_addr: std_logic_vector(ROM_CONTROL_FN_ADDR_WIDTH
+			- 1 downto 0) := (others => '0');
+	signal aux_rom_control_fn_q:    std_logic_vector(ROM_CONTROL_FN_WIDTH - 1
+			downto 0);
 	
 	signal io_reset:  std_logic := '1';
 	signal io_update: std_logic := '0';
@@ -240,9 +240,10 @@ begin
 	dds_serial_control:
 	process (clock)
 		type serial_state_type is (
-			ST_WRITE_PROFILES,
+			ST_WRITE_RAM_PROFILE,
 			ST_WRITE_RAM_ADDR,
 			ST_WRITE_RAM,
+			ST_WRITE_PROFILES,
 			ST_WRITE_CONTROL_FNS,
 			ST_WRITE_FTW
 		);
@@ -253,26 +254,22 @@ begin
 		if rising_edge(clock) then
 			if state = ST_INIT then
 				case serial_state is
-				when ST_WRITE_PROFILES =>
+				when ST_WRITE_RAM_PROFILE =>
 					if finish = true then
 						finish := false;
 						serial_state := ST_WRITE_RAM_ADDR;
 					else
-						write_from_rom (
+						write_constant (
 							SERIAL_BUS_WIDTH,
 							ROM_PROFILE_WIDTH,
-							ROM_PROFILE_ADDR_WIDTH,
-							ROM_PROFILE_DEPTH,
+							DDS_RAM_WRITE_PROFILE,
 							aux_p2s_reset,
 							aux_p2s_len,
 							aux_p2s_pdi,
 							aux_p2s_finish,
-							aux_rom_profile_addr,
-							aux_rom_profile_q,
-							counter,
 							finish
 						);
-						serial_state := ST_WRITE_PROFILES;
+						serial_state := ST_WRITE_RAM_PROFILE;
 					end if;
 				when ST_WRITE_RAM_ADDR =>
 					if finish = true then
@@ -311,6 +308,27 @@ begin
 							finish
 						);
 						serial_state := ST_WRITE_RAM;
+					end if;
+				when ST_WRITE_PROFILES =>
+					if finish = true then
+						finish := false;
+						serial_state := ST_WRITE_RAM_ADDR;
+					else
+						write_from_rom (
+							SERIAL_BUS_WIDTH,
+							ROM_PROFILE_WIDTH,
+							ROM_PROFILE_ADDR_WIDTH,
+							ROM_PROFILE_DEPTH,
+							aux_p2s_reset,
+							aux_p2s_len,
+							aux_p2s_pdi,
+							aux_p2s_finish,
+							aux_rom_profile_addr,
+							aux_rom_profile_q,
+							counter,
+							finish
+						);
+						serial_state := ST_WRITE_PROFILES;
 					end if;
 				when ST_WRITE_CONTROL_FNS =>
 					if finish = true then
