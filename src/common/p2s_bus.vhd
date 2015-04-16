@@ -68,16 +68,16 @@ begin
 					sclk      <= '0';
 					finish    <= '0';
 					if bits_written = n - 1 then
-						-- Update data register. Careful about the order.
+						-- Update data register
+						bits_written := 0;
 						n            := len;
 						sdo          <= pdi(DATA_WIDTH - 1);
 						dst          := pdi(DATA_WIDTH - 2 downto 0);
-						bits_written := 0;
 					else
-						-- Write out highest bit
+						-- Write out highest bit. Careful about order.
+						bits_written := bits_written + 1;
 						sdo          <= dst(DST_LEN - 1);
 						dst          := dst(DST_LEN - 2 downto 0) & '0';
-						bits_written := bits_written + 1;
 					end if;
 				end if;
 			end if;

@@ -50,7 +50,7 @@ architecture behavior of dds_controller is
 			signal p2s_len:    out natural;
 			signal p2s_pdi:    out std_logic_vector;
 			signal p2s_finish: in std_logic;
-			variable finish:     out boolean
+			variable finish:   out boolean
 	) is
 	begin
 		if p2s_finish = '1' then
@@ -78,7 +78,7 @@ architecture behavior of dds_controller is
 			signal rom_addr:   out std_logic_vector;
 			signal rom_q:      in std_logic_vector;
 			variable addr_count: inout natural;
-			variable finish:     out boolean
+			variable finish:     inout boolean
 	) is
 	begin
 		p2s_reset <= '0';
@@ -86,8 +86,7 @@ architecture behavior of dds_controller is
 		p2s_pdi(P2S_WIDTH - 1 downto P2S_WIDTH - DATA_WIDTH) <= rom_q;
 		if addr_count = DATA_DEPTH - 1 then
 			-- Can't have an address greater than depth
-			rom_addr <= std_logic_vector(to_unsigned(0, ADDR_WIDTH));
-			rom_addr   <= (others => '0');
+			rom_addr <= (others => '0');
 			if p2s_finish = '1' then
 				p2s_reset <= '1';
 				addr_count := 0;
@@ -95,7 +94,7 @@ architecture behavior of dds_controller is
 			else
 				finish := false;
 			end if;
-		else
+		elsif finish = false then
 			rom_addr <= std_logic_vector(to_unsigned(addr_count + 1,
 					ADDR_WIDTH));
 			if p2s_finish = '1' then
@@ -112,6 +111,10 @@ architecture behavior of dds_controller is
 		ST_FINISH
 	);
 	signal state: dds_state := ST_STANDBY;
+	
+	--- Clocks
+	
+	signal clk_100: std_logic;
 	
 	constant SERIAL_BUS_WIDTH: natural := 128;
 	
@@ -151,17 +154,32 @@ architecture behavior of dds_controller is
 	signal aux_rom_control_fn_q:    std_logic_vector(ROM_CONTROL_FN_WIDTH - 1
 			downto 0);
 	
+	--- Output buffers
+	
 	signal io_reset:  std_logic := '1';
 	signal io_update: std_logic := '0';
 	
+	--- Interprocess communication
+	
 	signal serial_write_complete: boolean := false;
 begin
+
+	--- Generate other clocks
+	
+	pll_clk: entity work.pll_mf
+	port map (
+		clock,
+		clk_100
+	);
+
+	--- IO and memory subcomponents
+
 	serial_bus: entity work.p2s_bus
 	generic map (
 		DATA_WIDTH => SERIAL_BUS_WIDTH
 	)
 	port map (
-		clock  => clock,
+		clock  => clk_100,
 		reset  => aux_p2s_reset,
 		pdi    => aux_p2s_pdi,
 		len    => aux_p2s_len,
@@ -178,7 +196,7 @@ begin
         INIT_FILE     => "../data/profile_data.mif"
     )
     port map (
-        clock   => clock,
+        clock   => clk_100,
         address => aux_rom_profile_addr,
         q       => aux_rom_profile_q
     );
@@ -191,7 +209,7 @@ begin
         INIT_FILE     => "../data/ram_data.mif"
     )
     port map (
-        clock   => clock,
+        clock   => clk_100,
         address => aux_rom_ram_addr,
         q       => aux_rom_ram_q
     );
@@ -205,7 +223,7 @@ begin
     )
     port map (
         address => aux_rom_control_fn_addr,
-        clock   => clock,
+        clock   => clk_100,
         q       => aux_rom_control_fn_q
     );
 
@@ -215,9 +233,9 @@ begin
 	dds_dac_control <= DAC_CONTROL_PINS_CONST;
 	
 	state_control:
-	process (clock)
+	process (clk_100)
 	begin
-		if rising_edge(clock) then
+		if rising_edge(clk_100) then
 			if reset = '1' then
 				state <= ST_STANDBY;
 			else
@@ -238,26 +256,37 @@ begin
 	end process;
 
 	dds_serial_control:
-	process (clock)
+	process (clk_100)
 		type serial_state_type is (
 			ST_WRITE_RAM_PROFILE,
 			ST_WRITE_RAM_ADDR,
 			ST_WRITE_RAM,
-			ST_WRITE_PROFILES,
 			ST_WRITE_CONTROL_FNS,
+			ST_WRITE_PROFILES,
 			ST_WRITE_FTW
 		);
-		variable serial_state: serial_state_type := ST_WRITE_PROFILES;
+		variable serial_state: serial_state_type := ST_WRITE_RAM_PROFILE;
 		variable counter: natural := 0;
 		variable finish:  boolean := false;
 	begin
-		if rising_edge(clock) then
-			if state = ST_INIT then
+		if rising_edge(clk_100) then
+			case state is
+			when ST_STANDBY =>
+				serial_state := ST_WRITE_RAM_PROFILE;
+				serial_write_complete <= false;
+				io_reset  <= '1';
+				io_update <= '0';
+				counter := 0;
+				finish := false;
+				aux_p2s_reset <= '1';
+			when ST_INIT =>
 				case serial_state is
 				when ST_WRITE_RAM_PROFILE =>
 					if finish = true then
 						finish := false;
 						serial_state := ST_WRITE_RAM_ADDR;
+						io_reset  <= '1';
+						io_update <= '1';
 					else
 						write_constant (
 							SERIAL_BUS_WIDTH,
@@ -270,6 +299,8 @@ begin
 							finish
 						);
 						serial_state := ST_WRITE_RAM_PROFILE;
+						io_reset  <= '0';
+						io_update <= '0';
 					end if;
 				when ST_WRITE_RAM_ADDR =>
 					if finish = true then
@@ -287,11 +318,15 @@ begin
 							finish
 						);
 						serial_state := ST_WRITE_RAM_ADDR;
+						io_update <= '0';
+						io_reset  <= '0';
 					end if;
 				when ST_WRITE_RAM =>
 					if finish = true then
 						finish := false;
 						serial_state := ST_WRITE_CONTROL_FNS;
+						io_reset  <= '1';
+						io_update <= '1';
 					else
 						write_from_rom (
 							SERIAL_BUS_WIDTH,
@@ -308,32 +343,15 @@ begin
 							finish
 						);
 						serial_state := ST_WRITE_RAM;
-					end if;
-				when ST_WRITE_PROFILES =>
-					if finish = true then
-						finish := false;
-						serial_state := ST_WRITE_RAM_ADDR;
-					else
-						write_from_rom (
-							SERIAL_BUS_WIDTH,
-							ROM_PROFILE_WIDTH,
-							ROM_PROFILE_ADDR_WIDTH,
-							ROM_PROFILE_DEPTH,
-							aux_p2s_reset,
-							aux_p2s_len,
-							aux_p2s_pdi,
-							aux_p2s_finish,
-							aux_rom_profile_addr,
-							aux_rom_profile_q,
-							counter,
-							finish
-						);
-						serial_state := ST_WRITE_PROFILES;
+						io_reset  <= '0';
+						io_update <= '0';
 					end if;
 				when ST_WRITE_CONTROL_FNS =>
 					if finish = true then
 						finish := false;
-						serial_state := ST_WRITE_FTW;
+						serial_state := ST_WRITE_PROFILES;
+						io_reset  <= '1';
+						io_update <= '1';
 					else
 						write_from_rom (
 							SERIAL_BUS_WIDTH,
@@ -350,16 +368,45 @@ begin
 							finish
 						);
 						serial_state := ST_WRITE_CONTROL_FNS;
+						io_reset  <= '0';
+						io_update <= '0';
+					end if;
+				when ST_WRITE_PROFILES =>
+					if finish = true then
+						finish := false;
+						serial_state := ST_WRITE_FTW;
+						io_reset  <= '1';
+						io_update <= '1';
+					else
+						write_from_rom (
+							SERIAL_BUS_WIDTH,
+							ROM_PROFILE_WIDTH,
+							ROM_PROFILE_ADDR_WIDTH,
+							ROM_PROFILE_DEPTH,
+							aux_p2s_reset,
+							aux_p2s_len,
+							aux_p2s_pdi,
+							aux_p2s_finish,
+							aux_rom_profile_addr,
+							aux_rom_profile_q,
+							counter,
+							finish
+						);
+						serial_state := ST_WRITE_PROFILES;
+						io_reset  <= '0';
+						io_update <= '0';
 					end if;
 				when ST_WRITE_FTW =>
 					if finish = true then
 						serial_write_complete <= true;
 						serial_state := ST_WRITE_FTW;
+						io_reset  <= '1';
+						io_update <= '1';
 					else
 						write_constant (
 							SERIAL_BUS_WIDTH,
-							DDS_WORD_WIDTH,
-							x"11111113", -- Test data
+							DDS_ADDR_WIDTH + DDS_WORD_WIDTH,
+							DDS_FTW_ADDR_BYTE & x"01101000", -- Test data
 							aux_p2s_reset,
 							aux_p2s_len,
 							aux_p2s_pdi,
@@ -367,25 +414,24 @@ begin
 							finish
 						);
 						serial_state := ST_WRITE_FTW;
+						io_reset  <= '0';
+						io_update <= '0';
 					end if;
 				end case;
-				if finish = true then
-					io_update <= '1';
-					io_reset  <= '1';
-				else
-					io_update <= '0';
-					io_reset  <= '0';
-				end if;
-			elsif state = ST_FINISH then
+			when ST_FINISH =>
 				finish := false;
-				serial_state := ST_WRITE_PROFILES;
+				serial_state := ST_WRITE_RAM_PROFILE;
 				serial_write_complete <= false;
-			end if;
+				io_reset  <= '1';
+				io_update <= '0';
+				counter := 0;
+				aux_p2s_reset <= '1';
+			end case;
 		end if;
 	end process;
 	
 	dds_signal_control:
-	process (clock)
+	process (state)
 	begin
 		case state is
 			when ST_STANDBY =>
