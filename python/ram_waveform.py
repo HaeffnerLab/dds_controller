@@ -1,3 +1,8 @@
+#!/usr/bin/env python
+
+# This script writes a memory initialization file containing amplitude data
+# that will populate the DDS onboard RAM.
+
 import io
 import numpy
 import sys
@@ -13,17 +18,19 @@ def gen_data():
 
     return shift_vals
 
-def get_mif_header():
-    return  "width=32;\n" \
-            "depth=1024;\n" \
-            "\n" \
-            "address_radix=hex;\n" \
-            "data_radix=hex;\n" \
-            "\n" \
-            "content begin\n"
+MIF_HEADER = "width=32;\n" \
+        "depth=1024;\n" \
+        "\n" \
+        "address_radix=hex;\n" \
+        "data_radix=hex;\n" \
+        "\n" \
+        "content begin\n"
 
-def get_mif_footer():
-    return "end;\n"
+MIF_FOOTER = "end;\n"
+
+DEFAULT_FILE = "../data/ram_data.mif"
+
+USAGE = "Usage: ram_waveform.py [FILE]"
 
 def write_mif(data, path):
     data_len = len(data)
@@ -31,17 +38,16 @@ def write_mif(data, path):
         return
 
     with open(path, 'w') as f:
-        f.write(get_mif_header())
+        f.write(MIF_HEADER)
         for i in range(0, 1024):
             f.write("\t%03x: %08x;\n" % (i, data[i]))
-        f.write(get_mif_footer())
-
-def usage():
-    return 'Usage: python ram_waveform.py OUTPUT_MIF'
+        f.write(MIF_FOOTER)
 
 def main(args):
     if len(args) < 2:
-        print(usage())
+        write_mif(gen_data(), DEFAULT_FILE)
+    elif args[1] == "-h" or args[1] == "--help":
+        print(USAGE.format(args[0]))
     else:
         write_mif(gen_data(), args[1])
 

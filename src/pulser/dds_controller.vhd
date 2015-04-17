@@ -11,6 +11,7 @@ use work.dds_lib.all;
 
 entity dds_controller is
 	port (
+		-- Incoming clock @ 25MHz
 		clock:            in std_logic;
 		reset:            in std_logic;
 
