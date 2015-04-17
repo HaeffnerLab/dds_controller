@@ -48,7 +48,7 @@ control_functions:
         bits:    [24, 26]
         default: 7
       chrg_pump_current:
-        bits:    [21, 19]
+        bits:    [19, 21]
         default: 7
       reflck_div_bypass:
         bits:    15
