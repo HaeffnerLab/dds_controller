@@ -38,7 +38,7 @@ control_functions:
       pd_en:
         bits:    4
         default: false
-        value:   true
+#        value:   true
   - address: 2
     options:
       drv0:
@@ -53,10 +53,10 @@ control_functions:
       reflck_div_bypass:
         bits:    15
         default: false
+        value:   true
       refclk_div_reset:
         bits:    14
         default: true
-        value:   false
 
 profiles:
   - address: 0x0E

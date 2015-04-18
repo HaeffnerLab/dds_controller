@@ -33,14 +33,13 @@ DEFAULT_FILE = "../data/ram_data.mif"
 USAGE = "Usage: ram_waveform.py [FILE]"
 
 def write_mif(data, path):
-    data_len = len(data)
-    if data_len == 0:
+    if len(data) == 0:
         return
 
     with open(path, 'w') as f:
         f.write(MIF_HEADER)
         for i in range(0, 1024):
-            f.write("\t%03x: %08x;\n" % (i, data[i]))
+            f.write("\t{:03x}: {:08x};\n".format(i, data[i]))
         f.write(MIF_FOOTER)
 
 def main(args):

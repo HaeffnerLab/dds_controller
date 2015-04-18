@@ -1,4 +1,4 @@
-# `dds_controller`
+# dds\_controller
 Current (as of 2015) code to configure and control the AD9910 DDS with Altera's
 Cyclone II FPGA.
 

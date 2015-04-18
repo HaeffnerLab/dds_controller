@@ -56,12 +56,12 @@ def write_mif(data, width, depth, path):
     data_len = len(data)
     if data_len == 0:
         return
-    format_str = "\t%x: %0" + str(width / 4) + "x;\n"
+    format_str = "\t{:x}: {:0" + str(width / 4) + "x};\n"
 
     with open(path, "w") as f:
         f.write(MIF_HEADER.format(width, depth))
         for i in range(0, depth):
-            f.write(format_str % (i, data[i]))
+            f.write(format_str.format(i, data[i]))
         f.write(MIF_FOOTER)
 
 def main(args):
