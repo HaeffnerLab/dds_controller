@@ -201,9 +201,9 @@ architecture behavior of dds_controller is
 	constant RAM_WR_WIDTH:      natural := 16;
 	constant RAM_WR_ADDR_WIDTH: natural := 11;
 	constant RAM_WR_DEPTH:      natural := 2048;
-	constant RAM_RD_WIDTH:       natural := 64;
-	constant RAM_RD_ADDR_WIDTH:  natural := 9;
-	constant RAM_RD_DEPTH:       natural := 512;
+	constant RAM_RD_WIDTH:      natural := 64;
+	constant RAM_RD_ADDR_WIDTH: natural := 9;
+	constant RAM_RD_DEPTH:      natural := 512;
 
 	signal aux_ram_data:    std_logic_vector(RAM_WR_WIDTH - 1 downto 0);
 	signal aux_ram_wr_addr: std_logic_vector(RAM_WR_ADDR_WIDTH - 1 downto 0)
@@ -214,26 +214,25 @@ architecture behavior of dds_controller is
 	signal aux_ram_rd_addr: std_logic_vector(RAM_RD_ADDR_WIDTH - 1 downto 0)
 			:= (others => '0');
 
-	constant RAM_AMPL_WIDTH: natural := 14;
-	constant RAM_PHASE_WIDTH:     natural := 15;
-
-	constant RAM_AMPL_OFFSET: natural := RAM_RD_WIDTH - DDS_WORD_WIDTH;
-	constant RAM_PHASE_OFFSET: natural := RAM_AMPL_OFFSET - RAM_AMPL_WIDTH;
+	constant RAM_AMPL_WIDTH:  natural := 13;
+	constant RAM_PHASE_WIDTH: natural := 16;
 
 	-- RAM output signals
 	-- Each 64 bit block from RAM is organized as follows:
 	-- [63..32]: FTW
-	-- [31..18]: Amplitude
-	--  [17..3]: Phase
-	--   [2..0]: Profile
+	-- [31..19]: Amplitude
+	-- [18..16]: Profile
+	--  [15..0]: Phase
 	signal ram_out_ftw:     std_logic_vector(DDS_WORD_WIDTH - 1 downto 0);
 	signal ram_out_ampl:    std_logic_vector(RAM_AMPL_WIDTH - 1 downto 0);
-	signal ram_out_phase:   std_logic_vector(RAM_PHASE_WIDTH - 1 downto 0);
 	signal ram_out_profile: std_logic_vector(DDS_PROFILE_SEL_WIDTH - 1 downto
 			0);
+	signal ram_out_phase:   std_logic_vector(RAM_PHASE_WIDTH - 1 downto 0);
 	
 	--- Output buffers
 	
+	signal profile_sel: std_logic_vector(DDS_PROFILE_SEL_WIDTH - 1 downto 0);
+
 	signal io_reset:  std_logic := '1';
 	signal io_update: std_logic := '0';
 	signal pl_data:   std_logic_vector(DDS_PL_PORT_WIDTH - 1 downto 0)
@@ -253,19 +252,19 @@ begin
 
 	--- Combinatorial signals
 
-	dds_cs          <= '0';
+	dds_cs <= '0';
 
 	-- It is important that these two be high Z when not communicating
 	bus_fifo_rd_en  <= fifo_rd_en when bus_addr = chip_addr else 'Z';
 	bus_fifo_rd_clk <= fifo_rd_clk when bus_addr = chip_addr else 'Z';
 	bus_tx_en       <= b"11" when bus_addr = chip_addr else b"00";
 
-	ram_out_ftw     <= aux_ram_q(RAM_RD_WIDTH - 1 downto RAM_AMPL_OFFSET);
-	ram_out_ampl    <= aux_ram_q(RAM_AMPL_OFFSET - 1 downto
-			RAM_PHASE_OFFSET);
-	ram_out_phase   <= aux_ram_q(RAM_PHASE_OFFSET - 1 downto
-			DDS_PROFILE_SEL_WIDTH);
-	ram_out_profile <= aux_ram_q(DDS_PROFILE_SEL_WIDTH - 1 downto 0);
+	ram_out_ftw     <= aux_ram_q(RAM_RD_WIDTH - 1 downto RAM_RD_WIDTH -
+			DDS_WORD_WIDTH);
+	ram_out_ampl    <= aux_ram_q(DDS_WORD_WIDTH - 1 downto DDS_WORD_WIDTH -
+			RAM_AMPL_WIDTH);
+	ram_out_profile <= aux_ram_q(RAM_PHASE_WIDTH + 2 downto RAM_PHASE_WIDTH);
+	ram_out_phase   <= aux_ram_q(RAM_PHASE_WIDTH - 1 downto 0);
 
 	--- Generate other clocks
 	
@@ -282,7 +281,7 @@ begin
 		if rising_edge(clock) then
 			if count < 10 then
 				count   := count + 1;
---				clk_sys <= '0';
+				clk_sys <= '0';
 			elsif count < 19 then
 				count   := count + 1;
 				clk_sys <= '1';
@@ -350,6 +349,10 @@ begin
 	
 	state_control:
 	process (clk_100)
+		-- Quick fix: step state should only trigger once RAM output updated
+		-- Should revert to parallel processes like in original code?
+		variable ram_out_var: std_logic_vector(RAM_RD_WIDTH - 1 downto 0)
+				:= (others => '0');
 	begin
 		if rising_edge(clk_100) then
 			if bus_dds_reset = '1' then
@@ -357,6 +360,7 @@ begin
 			else
 				case state is 
 				when ST_STANDBY =>
+					ram_out_var := (others => '0');
 					state <= ST_INIT;
 				when ST_INIT =>
 					if serial_write_complete = true then
@@ -365,7 +369,7 @@ begin
 						state <= ST_INIT;
 					end if;
 				when ST_ACTIVE =>
-					if bus_step = '1' then
+					if ram_out_var /= aux_ram_q then
 						state <= ST_STEP;
 					else
 						state <= ST_ACTIVE;
@@ -374,6 +378,7 @@ begin
 					if serial_write_complete = true then
 						state <= ST_ACTIVE;
 					else
+						ram_out_var := aux_ram_q;
 						state <= ST_STEP;
 					end if;
 				end case;
@@ -404,6 +409,11 @@ begin
 				counter := 0;
 				finish := false;
 				aux_p2s_reset <= '1';
+				aux_p2s_len <= 0;
+				aux_p2s_pdi <= (others => '0');
+				aux_rom_ram_addr <= (others => '0');
+				aux_rom_control_fn_addr <= (others => '0');
+				aux_rom_profile_addr <= (others => '0');
 			when ST_INIT =>
 				case serial_state is
 				when ST_WRITE_INIT_PROFILE =>
@@ -555,65 +565,59 @@ begin
 
 	pl_dest <= "01"; -- Currently never needs to be changed
 
-	-- TODO: Quartus has to infer latches for pl_data with this code, so
-	-- instead split into "write amplitude" and "write phase" states with
-	-- well-defined values for each signal.
 	dds_parallel_control:
 	process (clk_100)
 		variable count: natural range 0 to 5 := 0;
 	begin
 		if state = ST_STEP then
-			if count < 3 then
-				pl_data(DDS_PL_PORT_WIDTH - 1 downto DDS_PL_PORT_WIDTH -
-						RAM_AMPL_WIDTH) <= ram_out_ampl;
-				pl_data(DDS_PL_PORT_WIDTH - RAM_AMPL_WIDTH - 1 downto 0) <=
-						(others => '0');
-			else
-				pl_data(DDS_PL_PORT_WIDTH - 1 downto DDS_PL_PORT_WIDTH -
-						RAM_PHASE_WIDTH) <= ram_out_phase;
-				pl_data(DDS_PL_PORT_WIDTH - RAM_PHASE_WIDTH - 1 downto 0) <=
-						(others => '0');
+			if rising_edge(clk_100) then
+				if count < 3 then
+					pl_data(DDS_PL_PORT_WIDTH - 1 downto DDS_PL_PORT_WIDTH -
+							RAM_AMPL_WIDTH) <= ram_out_ampl;
+					pl_data(DDS_PL_PORT_WIDTH - RAM_AMPL_WIDTH - 1 downto 0) <=
+							(others => '0');
+				else
+					pl_data <= ram_out_phase;
+				end if;
+				case count is
+				when 0 =>
+					pl_tx_en <= '0';
+					dac_wre  <= '0';
+					count    := count + 1;
+				when 1 =>
+					pl_tx_en <= '0';
+					dac_wre <= '1';
+					count   := count + 1;
+				when 2 =>
+					pl_tx_en <= '0';
+					dac_wre <= '0';
+					count   := count + 1;
+				when 3 =>
+					pl_tx_en <= '0';
+					dac_wre  <= '0';
+					count    := count + 1;
+				when 4 =>
+					pl_tx_en <= '1';
+					dac_wre  <= '0';
+					count    := count + 1;
+				when 5 =>
+					pl_tx_en <= '0';
+					dac_wre  <= '0';
+				end case;
 			end if;
-			case count is
-			when 0 =>
-				pl_tx_en <= '0';
-				dac_wre  <= '0';
-				count    := count + 1;
-			when 1 =>
-				pl_tx_en <= '0';
-				dac_wre <= '1';
-				count   := count + 1;
-			when 2 =>
-				pl_tx_en <= '0';
-				dac_wre <= '0';
-				count   := count + 1;
-			when 3 =>
-				-- 15 downto 3
-				pl_tx_en <= '0';
-				dac_wre  <= '0';
-				count    := count + 1;
-			when 4 =>
-				pl_tx_en <= '1';
-				dac_wre  <= '0';
-				count    := count + 1;
-			when 5 =>
-				pl_tx_en <= '0';
-				dac_wre  <= '0';
-				count    := 5;
-			end case;
 		else
-			pl_data  <= (others => '0');
-			pl_tx_en <= '0';
-			dac_wre  <= '0';
-			count    := 0;
+			pl_data     <= (others => '0');
+			pl_tx_en    <= '0';
+			dac_wre     <= '0';
+			count       := 0;
 		end if;
 	end process;
 	
-	-- One possible issue: currently, dds_profile_sel is updated as soon as
-	-- the RAM steps to the next address. It might be better to store it and
-	-- only update when the FTW has been written.
 	dds_signal_control:
 	process (state)
+		-- Don't update profile_sel until FTW is written
+		variable profile_sel_var: std_logic_vector(DDS_PROFILE_SEL_WIDTH - 1
+				downto 0) := (others => '0');
 	begin
 		case state is
 			when ST_STANDBY =>
@@ -623,12 +627,10 @@ begin
 				dds_io_reset  <= '1';
 				dds_io_update <= '0';
 				dds_profile_sel <= (others => '0');
---				dds_pdo         <= (others => '0');
-				dds_pdo <= (others => '1');
+				dds_pdo         <= (others => '0');
 				dds_pl_dest     <= (others => '0');
 				dds_pl_tx_en    <= '0';
---				dds_dac_wre     <= '0';
-				dds_dac_wre <= '1';
+				dds_dac_wre     <= '0';
 			when ST_INIT =>
 				dds_reset     <= '0';
 				dds_sdo       <= aux_p2s_sdo;
@@ -646,18 +648,23 @@ begin
 				dds_sdo       <= '0';
 				dds_io_reset  <= '1';
 				dds_io_update <= '0';
-				dds_profile_sel <= ram_out_profile;
+--				dds_profile_sel <= profile_sel_var;
+				dds_profile_sel <= (others => '0');
 				dds_pdo         <= (others => '0');
 				dds_pl_dest     <= (others => '0');
 				dds_pl_tx_en    <= '0';
 				dds_dac_wre     <= '0';
 			when ST_STEP =>
+				if serial_write_complete = true then
+					profile_sel_var := ram_out_profile;
+				end if;
 				dds_reset     <= '0';
 				dds_sdo       <= aux_p2s_sdo;
 				dds_sclk      <= aux_p2s_sclk;
 				dds_io_reset  <= io_reset;
 				dds_io_update <= io_update;
-				dds_profile_sel <= ram_out_profile;
+--				dds_profile_sel <= profile_sel_var;
+				dds_profile_sel <= (others => '0');
 				dds_pdo         <= pl_data;
 				dds_pl_dest     <= pl_dest;
 				dds_pl_tx_en    <= pl_tx_en;
@@ -686,12 +693,11 @@ begin
 		q         => aux_ram_q
 	);
 
-	-- Asynchronous with other processes--a potential problem
 	ram_address_step:
 	process (bus_step, bus_ram_reset)
 		variable addr_counter: natural range 0 to RAM_RD_DEPTH - 1 := 0;
 	begin
-		if bus_ram_reset = '1' then
+		if bus_dds_reset = '1' or bus_ram_reset = '1' then
 			addr_counter := 0;
 		elsif rising_edge(bus_step) then
 			addr_counter := addr_counter + 1;
@@ -704,56 +710,61 @@ begin
 	-- querying the FIFO for data and keep transferring to onboard RAM until
 	-- it's empty
 	ram_control:
-	process (clk_sys)
+	process (clk_sys, bus_ram_reset, bus_dds_reset)
 		variable ram_write_addr: natural range 0 to RAM_WR_DEPTH - 1 := 0;
-		variable counter:        natural range 0 to 8 := 0;
+		variable counter:        natural range 0 to 7 := 0;
 	begin
-		if rising_edge(clock) then
-			if bus_ram_reset = '1' then
-				ram_write_addr := 0;
-			else
-				case counter is
-				-- Look for data in the FIFO
-				when 0 =>
-					fifo_rd_clk   <= '1';
-					fifo_rd_en    <= '0';
-					aux_ram_wr_en <= '0';
-					counter       := counter + 1;
-				when 1 =>
-					fifo_rd_clk <= '1';
-					counter     := counter + 1;
-				when 2 =>
-					if bus_addr = chip_addr and bus_fifo_empty /= '1' then
-						counter := counter + 1;
-					else
-						counter := 0;
-					end if;
-				-- FIFO not empty
-				when 3 =>
-					fifo_rd_en <= '1';
-					counter    := counter + 1;
-				when 4 =>
-					fifo_rd_clk    <= '1';
-					aux_ram_wr_en  <= '1';
-					aux_ram_wr_clk <= '1';
-					counter        := counter + 1;
-				when 5 =>
-					fifo_rd_clk <= '0';
-					counter     := counter + 1;
-				-- Set data to write
-				when 6 =>
-					aux_ram_wr_addr <= std_logic_vector(to_unsigned
-							(ram_write_addr, RAM_WR_ADDR_WIDTH));
-					aux_ram_data <= bus_data_in;
-					counter      := counter + 1;
-				when 7 =>
-					aux_ram_wr_clk <= '0';
-					counter        := counter + 1;
-				when 8 =>
-					ram_write_addr := ram_write_addr + 1;
-					counter        := 2;
-				end case;
-			end if;
+		if bus_dds_reset = '1' or bus_ram_reset = '1' then
+			ram_write_addr := 0;
+			counter := 0;
+			fifo_rd_clk <= '0';
+			fifo_rd_en <= '0';
+			aux_ram_wr_clk <= '0';
+			aux_ram_wr_en <= '0';
+			aux_ram_data <= (others => '0');
+		elsif rising_edge(clk_sys) then
+			case counter is
+			-- Look for data in the FIFO
+			when 0 =>
+				fifo_rd_clk   <= '1';
+				fifo_rd_en    <= '0';
+				aux_ram_wr_en <= '0';
+				counter       := counter + 1;
+			when 1 =>
+				fifo_rd_clk <= '0';
+				if bus_addr = chip_addr and bus_fifo_empty /= '1' then
+					counter := counter + 1;
+				else
+					counter := 0;
+				end if;
+			when 2 =>
+				fifo_rd_en <= '1';
+				counter    := counter + 1;
+			when 3 =>
+				fifo_rd_clk    <= '1';
+				aux_ram_wr_en  <= '1';
+				aux_ram_wr_clk <= '1';
+				counter        := counter + 1;
+			when 4 =>
+				fifo_rd_clk <= '0';
+				counter     := counter + 1;
+			-- Set data to write
+			when 5 =>
+				aux_ram_wr_addr <= std_logic_vector(to_unsigned
+						(ram_write_addr, RAM_WR_ADDR_WIDTH));
+				aux_ram_data <= bus_data_in;
+				counter      := counter + 1;
+			when 6 =>
+				aux_ram_wr_clk <= '0';
+				counter        := counter + 1;
+			when 7 =>
+				ram_write_addr := ram_write_addr + 1;
+				if bus_addr = chip_addr and bus_fifo_empty /= '1' then
+					counter := 2;
+				else
+					counter := 0;
+				end if;
+			end case;
 		end if;
 	end process;
 end behavior;

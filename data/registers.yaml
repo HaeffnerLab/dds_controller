@@ -38,7 +38,7 @@ control_functions:
       pd_en:
         bits:    4
         default: false
-#        value:   true
+        value:   true
   - address: 2
     options:
       drv0:
