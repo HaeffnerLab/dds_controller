@@ -25,7 +25,7 @@ end p2s_bus;
 
 architecture behavior of p2s_bus is
 	-- Quick fix: delay one clock cycle
-	signal read_wait: std_logic := '1';
+	signal read_wait: std_logic;
 begin
 	process (clock)
 		-- Data shift register

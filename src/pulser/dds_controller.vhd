@@ -1,7 +1,6 @@
--- Top-level controller for the model AD9910 DDS with RAM modulation.
+-- Top-level controller for the model AD9910 with input from the pulser
 -- Various code improvements wanting to be made:
 --- Encapsulate objects with record types (cf. procedure code for why)
---- Use boolean over std_logic for internal signals
 library ieee;
 use ieee.std_logic_1164.all;
 use ieee.numeric_std.all;
@@ -49,7 +48,7 @@ entity dds_controller is
 		-- Chip select bar
 		dds_cs:           out std_logic;
 
-		--- LVDS bus pins
+		--- LVDS bus pins, asynchronous
 		
 		-- Master reset for the board
 		bus_dds_reset:   in std_logic;
@@ -73,72 +72,6 @@ end dds_controller;
 
 architecture behavior of dds_controller is
 
-	-- TODO: put procedures in dds_lib
-
-	-- Reusable procedure to simply write a constant (such as an instruction)
-	-- to the DDS over the serial port, then stop.
-	procedure write_constant (
-			P2S_WIDTH:  in natural;
-			DATA_WIDTH: in natural;
-			data:       in std_logic_vector;
-			signal p2s_reset:  out std_logic;
-			signal p2s_len:    out natural;
-			signal p2s_pdi:    out std_logic_vector;
-			signal p2s_finish: in std_logic;
-			variable finish:   out boolean
-	) is
-	begin
-		if p2s_finish = '1' then
-			p2s_reset <= '1';
-			finish    := true;
-		else
-			p2s_reset <= '0';
-			p2s_len   <= DATA_WIDTH;
-			p2s_pdi(P2S_WIDTH - 1 downto P2S_WIDTH - DATA_WIDTH) <= data;
-			finish := false;
-		end if;
-	end procedure;
-
-	-- Reusable procedure to write the entire contents of an Altera ROM
-	-- component over the serial port in sequence, then stop.
-	procedure write_from_rom (
-			P2S_WIDTH:  in natural;
-			DATA_WIDTH: in natural;
-			ADDR_WIDTH: in natural;
-			DATA_DEPTH: in natural;
-			signal p2s_reset:  out std_logic;
-			signal p2s_len:    out natural;
-			signal p2s_pdi:    out std_logic_vector;
-			signal p2s_finish: in std_logic;
-			signal rom_addr:   out std_logic_vector;
-			signal rom_q:      in std_logic_vector;
-			variable addr_count: inout natural;
-			variable finish:     inout boolean
-	) is
-	begin
-		p2s_reset <= '0';
-		p2s_len   <= DATA_WIDTH;
-		p2s_pdi(P2S_WIDTH - 1 downto P2S_WIDTH - DATA_WIDTH) <= rom_q;
-		if addr_count = DATA_DEPTH - 1 then
-			-- Can't have an address greater than depth
-			rom_addr <= (others => '0');
-			if p2s_finish = '1' then
-				p2s_reset <= '1';
-				addr_count := 0;
-				finish := true;
-			else
-				finish := false;
-			end if;
-		elsif finish = false then
-			rom_addr <= std_logic_vector(to_unsigned(addr_count + 1,
-					ADDR_WIDTH));
-			if p2s_finish = '1' then
-				addr_count := addr_count + 1;
-			end if;
-			finish := false;
-		end if;
-	end procedure;
-
 	--- DDS IO state machine
 
 	type dds_state is (
@@ -147,7 +80,7 @@ architecture behavior of dds_controller is
 		ST_ACTIVE,
 		ST_STEP
 	);
-	signal state: dds_state := ST_STANDBY;
+	signal state: dds_state;
 	
 	--- Clocks
 	
@@ -160,7 +93,7 @@ architecture behavior of dds_controller is
 	
 	constant SERIAL_BUS_WIDTH: natural := 72;
 	
-	signal aux_p2s_reset:  std_logic := '1';
+	signal aux_p2s_reset:  std_logic;
 	signal aux_p2s_sclk:   std_logic;
 	signal aux_p2s_sdo:    std_logic;
 	signal aux_p2s_len:    natural range 1 to SERIAL_BUS_WIDTH;
@@ -182,17 +115,16 @@ architecture behavior of dds_controller is
 	constant ROM_CONTROL_FN_ADDR_WIDTH: natural := 2;
 
 	signal aux_rom_profile_addr: std_logic_vector(ROM_PROFILE_ADDR_WIDTH - 1 
-			downto 0) := (others => '0');
+			downto 0);
 	signal aux_rom_profile_q:    std_logic_vector(ROM_PROFILE_WIDTH - 1 
 			downto 0); 
 
-	signal aux_rom_ram_addr: std_logic_vector(ROM_RAM_ADDR_WIDTH - 1 downto 0)
-			:= (others => '0');
+	signal aux_rom_ram_addr: std_logic_vector(ROM_RAM_ADDR_WIDTH - 1 downto 0);
 	signal aux_rom_ram_q:    std_logic_vector(ROM_RAM_WIDTH - 1
 			downto 0);
 
 	signal aux_rom_control_fn_addr: std_logic_vector(ROM_CONTROL_FN_ADDR_WIDTH
-			- 1 downto 0) := (others => '0');
+			- 1 downto 0);
 	signal aux_rom_control_fn_q:    std_logic_vector(ROM_CONTROL_FN_WIDTH - 1
 			downto 0);
 
@@ -206,13 +138,11 @@ architecture behavior of dds_controller is
 	constant RAM_RD_DEPTH:      natural := 512;
 
 	signal aux_ram_data:    std_logic_vector(RAM_WR_WIDTH - 1 downto 0);
-	signal aux_ram_wr_addr: std_logic_vector(RAM_WR_ADDR_WIDTH - 1 downto 0)
-			:= (others => '0');
+	signal aux_ram_wr_addr: std_logic_vector(RAM_WR_ADDR_WIDTH - 1 downto 0);
 	signal aux_ram_wr_clk:  std_logic;
-	signal aux_ram_wr_en:   std_logic := '0';
+	signal aux_ram_wr_en:   std_logic;
 	signal aux_ram_q:       std_logic_vector(RAM_RD_WIDTH - 1 downto 0);
-	signal aux_ram_rd_addr: std_logic_vector(RAM_RD_ADDR_WIDTH - 1 downto 0)
-			:= (others => '0');
+	signal aux_ram_rd_addr: std_logic_vector(RAM_RD_ADDR_WIDTH - 1 downto 0);
 
 	constant RAM_AMPL_WIDTH:  natural := 13;
 	constant RAM_PHASE_WIDTH: natural := 16;
@@ -350,42 +280,41 @@ begin
 	state_control:
 	process (clk_100)
 		-- Quick fix: step state should only trigger once RAM output updated
-		-- Should revert to parallel processes like in original code?
+		-- Revert to parallel processes like in original code?
 		variable ram_out_var: std_logic_vector(RAM_RD_WIDTH - 1 downto 0)
 				:= (others => '0');
 	begin
-		if rising_edge(clk_100) then
-			if bus_dds_reset = '1' then
-				state <= ST_STANDBY;
-			else
-				case state is 
-				when ST_STANDBY =>
-					ram_out_var := (others => '0');
+		if bus_dds_reset = '1' then
+			state <= ST_STANDBY;
+		elsif rising_edge(clk_100) then
+			case state is
+			when ST_STANDBY =>
+				ram_out_var := (others => '0');
+				state <= ST_INIT;
+			when ST_INIT =>
+				if serial_write_complete = true then
+					state <= ST_ACTIVE;
+				else
 					state <= ST_INIT;
-				when ST_INIT =>
-					if serial_write_complete = true then
-						state <= ST_ACTIVE;
-					else
-						state <= ST_INIT;
-					end if;
-				when ST_ACTIVE =>
-					if ram_out_var /= aux_ram_q then
-						state <= ST_STEP;
-					else
-						state <= ST_ACTIVE;
-					end if;
-				when ST_STEP =>
-					if serial_write_complete = true then
-						state <= ST_ACTIVE;
-					else
-						ram_out_var := aux_ram_q;
-						state <= ST_STEP;
-					end if;
-				end case;
-			end if;
+				end if;
+			when ST_ACTIVE =>
+				if ram_out_var /= aux_ram_q then
+					state <= ST_STEP;
+				else
+					state <= ST_ACTIVE;
+				end if;
+			when ST_STEP =>
+				if serial_write_complete = true then
+					state <= ST_ACTIVE;
+				else
+					ram_out_var := aux_ram_q;
+					state <= ST_STEP;
+				end if;
+			end case;
 		end if;
 	end process;
 
+	-- See common/dds_lib for the meaning of all the procedures
 	dds_serial_control:
 	process (clk_100)
 		type serial_state_type is (
@@ -402,18 +331,19 @@ begin
 		if rising_edge(clk_100) then
 			case state is
 			when ST_STANDBY =>
-				serial_state := ST_WRITE_INIT_PROFILE;
-				serial_write_complete <= false;
-				io_reset  <= '1';
-				io_update <= '0';
-				counter := 0;
-				finish := false;
-				aux_p2s_reset <= '1';
-				aux_p2s_len <= 0;
-				aux_p2s_pdi <= (others => '0');
-				aux_rom_ram_addr <= (others => '0');
+				serial_state            := ST_WRITE_INIT_PROFILE;
+				serial_write_complete   <= false;
+				io_reset                <= '1';
+				io_update               <= '0';
+				counter                 := 0;
+				finish                  := false;
+
+				aux_p2s_reset           <= '1';
+				aux_p2s_len             <= SERIAL_BUS_WIDTH;
+				aux_p2s_pdi             <= (others => '0');
+				aux_rom_ram_addr        <= (others => '0');
 				aux_rom_control_fn_addr <= (others => '0');
-				aux_rom_profile_addr <= (others => '0');
+				aux_rom_profile_addr    <= (others => '0');
 			when ST_INIT =>
 				case serial_state is
 				when ST_WRITE_INIT_PROFILE =>
@@ -707,8 +637,8 @@ begin
 	end process;
 
 	-- Drive RAM read clock to continuously refresh output values; keep
-	-- querying the FIFO for data and keep transferring to onboard RAM until
-	-- it's empty
+	-- querying the FIFO for data and transfer to onboard RAM until FIFO is
+	-- empty
 	ram_control:
 	process (clk_sys, bus_ram_reset, bus_dds_reset)
 		variable ram_write_addr: natural range 0 to RAM_WR_DEPTH - 1 := 0;
@@ -719,6 +649,7 @@ begin
 			counter := 0;
 			fifo_rd_clk <= '0';
 			fifo_rd_en <= '0';
+			aux_ram_wr_addr <= (others => '0');
 			aux_ram_wr_clk <= '0';
 			aux_ram_wr_en <= '0';
 			aux_ram_data <= (others => '0');
