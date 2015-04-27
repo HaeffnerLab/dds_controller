@@ -163,17 +163,15 @@ architecture behavior of dds_controller is
 	
 	signal profile_sel: std_logic_vector(DDS_PROFILE_SEL_WIDTH - 1 downto 0);
 
-	signal io_reset:  std_logic := '1';
-	signal io_update: std_logic := '0';
-	signal pl_data:   std_logic_vector(DDS_PL_PORT_WIDTH - 1 downto 0)
-			:= (others => '0');
-	signal pl_dest:   std_logic_vector(DDS_PL_ADDR_WIDTH - 1 downto 0)
-			:= (others => '0');
-	signal pl_tx_en:  std_logic := '0';
-	signal dac_wre:   std_logic := '0';
+	signal io_reset:  std_logic;
+	signal io_update: std_logic;
+	signal pl_data:   std_logic_vector(DDS_PL_PORT_WIDTH - 1 downto 0);
+	signal pl_dest:   std_logic_vector(DDS_PL_ADDR_WIDTH - 1 downto 0);
+	signal pl_tx_en:  std_logic;
+	signal dac_wre:   std_logic;
 
-	signal fifo_rd_en:  std_logic := '0';
-	signal fifo_rd_clk: std_logic := '0';
+	signal fifo_rd_en:  std_logic;
+	signal fifo_rd_clk: std_logic;
 	
 	--- Interprocess communication
 	
@@ -272,8 +270,8 @@ begin
         INIT_FILE     => "../data/control_function_data.mif"
     )
     port map (
-        address => aux_rom_control_fn_addr,
         clock   => clk_100,
+        address => aux_rom_control_fn_addr,
         q       => aux_rom_control_fn_q
     );
 	
