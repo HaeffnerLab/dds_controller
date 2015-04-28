@@ -30,12 +30,30 @@ def parse_control_fns(tree):
         control_fns.append(address << 32 | numeric)
     return control_fns
 
+# The DDS ref clock comes from a signal generator set at 800MHz
+DDS_SYSCLK_FREQ = 8.0e8
+# The amplitude waveform has a fixed number of samples: half the RAM size
+DDS_NUM_STEPS = 512
+
+# For robustness
+def clamp(n, mn, mx):
+    if n > mx:
+        return mx
+    elif n < mn:
+        return mn
+    else:
+        return n
+
+# Convert playback duration to a step word; formula from AD9910 manual p. 34
+def time_to_step(t):
+    return clamp(int((DDS_SYSCLK_FREQ * t) / (4 * DDS_NUM_STEPS)), 0, 0xFFFF)
+
 def parse_profiles(tree):
     return [
-        profile["address"] << 64 |
-        profile["step"]    << 40 |
-        profile["end"]     << 30 |
-        profile["start"]   << 14 |
+        profile["address"]            << 64 |
+        time_to_step(profile["step"]) << 40 |
+        profile["end"]                << 30 |
+        profile["start"]              << 14 |
         profile["mode"]
         for profile in tree
     ]

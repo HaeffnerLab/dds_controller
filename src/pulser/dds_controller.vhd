@@ -576,8 +576,7 @@ begin
 				dds_sdo       <= '0';
 				dds_io_reset  <= '1';
 				dds_io_update <= '0';
---				dds_profile_sel <= profile_sel_var;
-				dds_profile_sel <= (others => '0');
+				dds_profile_sel <= profile_sel_var;
 				dds_pdo         <= (others => '0');
 				dds_pl_dest     <= (others => '0');
 				dds_pl_tx_en    <= '0';
@@ -591,8 +590,7 @@ begin
 				dds_sclk      <= aux_p2s_sclk;
 				dds_io_reset  <= io_reset;
 				dds_io_update <= io_update;
---				dds_profile_sel <= profile_sel_var;
-				dds_profile_sel <= (others => '0');
+				dds_profile_sel <= profile_sel_var;
 				dds_pdo         <= pl_data;
 				dds_pl_dest     <= pl_dest;
 				dds_pl_tx_en    <= pl_tx_en;
