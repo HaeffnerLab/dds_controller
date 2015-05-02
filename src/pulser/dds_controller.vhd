@@ -158,7 +158,7 @@ architecture behavior of dds_controller is
 	signal ram_out_profile: std_logic_vector(DDS_PROFILE_SEL_WIDTH - 1 downto
 			0);
 	signal ram_out_phase:   std_logic_vector(RAM_PHASE_WIDTH - 1 downto 0);
-	
+
 	--- Output buffers
 	
 	signal profile_sel: std_logic_vector(DDS_PROFILE_SEL_WIDTH - 1 downto 0);
@@ -186,13 +186,6 @@ begin
 	bus_fifo_rd_en  <= fifo_rd_en when bus_addr = chip_addr else 'Z';
 	bus_fifo_rd_clk <= fifo_rd_clk when bus_addr = chip_addr else 'Z';
 	bus_tx_en       <= b"11" when bus_addr = chip_addr else b"00";
-
-	ram_out_ftw     <= aux_ram_q(RAM_RD_WIDTH - 1 downto RAM_RD_WIDTH -
-			DDS_WORD_WIDTH);
-	ram_out_ampl    <= aux_ram_q(DDS_WORD_WIDTH - 1 downto DDS_WORD_WIDTH -
-			RAM_AMPL_WIDTH);
-	ram_out_profile <= aux_ram_q(RAM_PHASE_WIDTH + 2 downto RAM_PHASE_WIDTH);
-	ram_out_phase   <= aux_ram_q(RAM_PHASE_WIDTH - 1 downto 0);
 
 	--- Generate other clocks
 	
@@ -237,43 +230,43 @@ begin
 	);
 
 	profile_rom: entity work.rom_mf
-    generic map (
-        DATA_WIDTH    => ROM_PROFILE_WIDTH,
-        ADDRESS_WIDTH => ROM_PROFILE_ADDR_WIDTH,
-        DEPTH         => ROM_PROFILE_DEPTH,
-        INIT_FILE     => "../data/profile_data.mif"
-    )
-    port map (
-        clock   => clk_100,
-        address => aux_rom_profile_addr,
-        q       => aux_rom_profile_q
-    );
+	generic map (
+		DATA_WIDTH    => ROM_PROFILE_WIDTH,
+		ADDRESS_WIDTH => ROM_PROFILE_ADDR_WIDTH,
+		DEPTH         => ROM_PROFILE_DEPTH,
+		INIT_FILE     => "../data/profile_data.mif"
+	)
+	port map (
+		clock   => clk_100,
+		address => aux_rom_profile_addr,
+		q       => aux_rom_profile_q
+	);
 
-    dds_ram_rom: entity work.rom_mf
-    generic map (
-        DATA_WIDTH    => ROM_RAM_WIDTH,
-        ADDRESS_WIDTH => ROM_RAM_ADDR_WIDTH,
-        DEPTH         => ROM_RAM_DEPTH,
-        INIT_FILE     => "../data/ram_data.mif"
-    )
-    port map (
-        clock   => clk_100,
-        address => aux_rom_ram_addr,
-        q       => aux_rom_ram_q
-    );
+	dds_ram_rom: entity work.rom_mf
+	generic map (
+		DATA_WIDTH    => ROM_RAM_WIDTH,
+		ADDRESS_WIDTH => ROM_RAM_ADDR_WIDTH,
+		DEPTH         => ROM_RAM_DEPTH,
+		INIT_FILE     => "../data/ram_data.mif"
+	)
+	port map (
+		clock   => clk_100,
+		address => aux_rom_ram_addr,
+		q       => aux_rom_ram_q
+	);
 
-    control_fn_rom: entity work.rom_mf
-    generic map (
-        DATA_WIDTH    => ROM_CONTROL_FN_WIDTH,
-        ADDRESS_WIDTH => ROM_CONTROL_FN_ADDR_WIDTH,
-        DEPTH         => ROM_CONTROL_FN_DEPTH,
-        INIT_FILE     => "../data/control_function_data.mif"
-    )
-    port map (
-        clock   => clk_100,
-        address => aux_rom_control_fn_addr,
-        q       => aux_rom_control_fn_q
-    );
+	control_fn_rom: entity work.rom_mf
+	generic map (
+		DATA_WIDTH    => ROM_CONTROL_FN_WIDTH,
+		ADDRESS_WIDTH => ROM_CONTROL_FN_ADDR_WIDTH,
+		DEPTH         => ROM_CONTROL_FN_DEPTH,
+		INIT_FILE     => "../data/control_function_data.mif"
+	)
+	port map (
+		clock   => clk_100,
+		address => aux_rom_control_fn_addr,
+		q       => aux_rom_control_fn_q
+	);
 	
 	state_control:
 	process (clk_100)
@@ -297,6 +290,7 @@ begin
 				end if;
 			when ST_ACTIVE =>
 				if ram_out_var /= aux_ram_q then
+					ram_out_var := aux_ram_q;
 					state <= ST_STEP;
 				else
 					state <= ST_ACTIVE;
@@ -305,10 +299,16 @@ begin
 				if serial_write_complete = true then
 					state <= ST_ACTIVE;
 				else
-					ram_out_var := aux_ram_q;
 					state <= ST_STEP;
 				end if;
 			end case;
+			ram_out_ftw     <= ram_out_var(RAM_RD_WIDTH - 1 downto RAM_RD_WIDTH
+					- DDS_WORD_WIDTH);
+			ram_out_ampl    <= ram_out_var(DDS_WORD_WIDTH - 1 downto
+					DDS_WORD_WIDTH - RAM_AMPL_WIDTH);
+			ram_out_profile <= ram_out_var(RAM_PHASE_WIDTH + 2 downto
+					RAM_PHASE_WIDTH);
+			ram_out_phase   <= ram_out_var(RAM_PHASE_WIDTH - 1 downto 0);
 		end if;
 	end process;
 
@@ -335,7 +335,6 @@ begin
 				io_update               <= '0';
 				counter                 := 0;
 				finish                  := false;
-
 				aux_p2s_reset           <= '1';
 				aux_p2s_len             <= SERIAL_BUS_WIDTH;
 				aux_p2s_pdi             <= (others => '0');
@@ -599,6 +598,7 @@ begin
 	end process;
 
 	-- RAM and bus communication
+	-- Would be cool to move to a subcomponent
 
 	pulser_ram: entity work.ram_mf
 	generic map (
@@ -638,7 +638,7 @@ begin
 	ram_control:
 	process (clk_sys, bus_ram_reset, bus_dds_reset)
 		variable ram_write_addr: natural range 0 to RAM_WR_DEPTH - 1 := 0;
-		variable counter:        natural range 0 to 7 := 0;
+		variable counter:        natural range 0 to 8 := 0;
 	begin
 		if bus_dds_reset = '1' or bus_ram_reset = '1' then
 			ram_write_addr := 0;
@@ -686,11 +686,9 @@ begin
 				counter        := counter + 1;
 			when 7 =>
 				ram_write_addr := ram_write_addr + 1;
-				if bus_addr = chip_addr and bus_fifo_empty /= '1' then
-					counter := 2;
-				else
-					counter := 0;
-				end if;
+				counter := counter + 1;
+			when 8 =>
+				counter := 0;
 			end case;
 		end if;
 	end process;
