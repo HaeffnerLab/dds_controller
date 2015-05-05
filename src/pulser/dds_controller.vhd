@@ -280,15 +280,20 @@ begin
 		elsif rising_edge(clk_100) then
 			case state is
 			when ST_STANDBY =>
+				profile_sel <= (others => '0');
 				ram_out_var := (others => '0');
 				state <= ST_INIT;
 			when ST_INIT =>
+				profile_sel <= (others => '0');
 				if serial_write_complete = true then
 					state <= ST_ACTIVE;
 				else
 					state <= ST_INIT;
 				end if;
 			when ST_ACTIVE =>
+				if serial_write_complete = true then
+					profile_sel <= ram_out_profile;
+				end if;
 				if ram_out_var /= aux_ram_q then
 					ram_out_var := aux_ram_q;
 					state <= ST_STEP;
@@ -297,11 +302,15 @@ begin
 				end if;
 			when ST_STEP =>
 				if serial_write_complete = true then
+					profile_sel <= ram_out_profile;
+				end if;
+				if serial_write_complete = true then
 					state <= ST_ACTIVE;
 				else
 					state <= ST_STEP;
 				end if;
 			end case;
+
 			ram_out_ftw     <= ram_out_var(RAM_RD_WIDTH - 1 downto RAM_RD_WIDTH
 					- DDS_WORD_WIDTH);
 			ram_out_ampl    <= ram_out_var(DDS_WORD_WIDTH - 1 downto
@@ -309,6 +318,11 @@ begin
 			ram_out_profile <= ram_out_var(RAM_PHASE_WIDTH + 2 downto
 					RAM_PHASE_WIDTH);
 			ram_out_phase   <= ram_out_var(RAM_PHASE_WIDTH - 1 downto 0);
+
+			ram_out_ftw     <= ram_out_var(63 downto 32);
+			ram_out_ampl    <= ram_out_var(31 downto 19);
+			ram_out_profile <= ram_out_var(18 downto 16);
+			ram_out_phase   <= ram_out_var(15 downto 0);
 		end if;
 	end process;
 
@@ -499,10 +513,9 @@ begin
 		if state = ST_STEP then
 			if rising_edge(clk_100) then
 				if count < 3 then
-					pl_data(DDS_PL_PORT_WIDTH - 1 downto DDS_PL_PORT_WIDTH -
-							RAM_AMPL_WIDTH) <= ram_out_ampl;
-					pl_data(DDS_PL_PORT_WIDTH - RAM_AMPL_WIDTH - 1 downto 0) <=
-							(others => '0');
+					pl_data(15 downto 14) <= (others => '0');
+					pl_data(13 downto 1)  <= ram_out_ampl;
+					pl_data(0)            <= '0';
 				else
 					pl_data <= ram_out_phase;
 				end if;
@@ -542,9 +555,6 @@ begin
 	
 	dds_signal_control:
 	process (state)
-		-- Don't update profile_sel until FTW is written
-		variable profile_sel_var: std_logic_vector(DDS_PROFILE_SEL_WIDTH - 1
-				downto 0) := (others => '0');
 	begin
 		case state is
 			when ST_STANDBY =>
@@ -575,21 +585,18 @@ begin
 				dds_sdo       <= '0';
 				dds_io_reset  <= '1';
 				dds_io_update <= '0';
-				dds_profile_sel <= profile_sel_var;
+				dds_profile_sel <= profile_sel;
 				dds_pdo         <= (others => '0');
 				dds_pl_dest     <= (others => '0');
 				dds_pl_tx_en    <= '0';
 				dds_dac_wre     <= '0';
 			when ST_STEP =>
-				if serial_write_complete = true then
-					profile_sel_var := ram_out_profile;
-				end if;
 				dds_reset     <= '0';
 				dds_sdo       <= aux_p2s_sdo;
 				dds_sclk      <= aux_p2s_sclk;
 				dds_io_reset  <= io_reset;
 				dds_io_update <= io_update;
-				dds_profile_sel <= profile_sel_var;
+				dds_profile_sel <= profile_sel;
 				dds_pdo         <= pl_data;
 				dds_pl_dest     <= pl_dest;
 				dds_pl_tx_en    <= pl_tx_en;
@@ -656,7 +663,7 @@ begin
 				fifo_rd_clk   <= '1';
 				fifo_rd_en    <= '0';
 				aux_ram_wr_en <= '0';
-				counter       := counter + 1;
+				counter	      := counter + 1;
 			when 1 =>
 				fifo_rd_clk <= '0';
 				if bus_addr = chip_addr and bus_fifo_empty /= '1' then
@@ -666,7 +673,7 @@ begin
 				end if;
 			when 2 =>
 				fifo_rd_en <= '1';
-				counter    := counter + 1;
+				counter	   := counter + 1;
 			when 3 =>
 				fifo_rd_clk    <= '1';
 				aux_ram_wr_en  <= '1';
@@ -674,16 +681,16 @@ begin
 				counter        := counter + 1;
 			when 4 =>
 				fifo_rd_clk <= '0';
-				counter     := counter + 1;
+				counter	    := counter + 1;
 			-- Set data to write
 			when 5 =>
 				aux_ram_wr_addr <= std_logic_vector(to_unsigned
 						(ram_write_addr, RAM_WR_ADDR_WIDTH));
 				aux_ram_data <= bus_data_in;
-				counter      := counter + 1;
+				counter	     := counter + 1;
 			when 6 =>
 				aux_ram_wr_clk <= '0';
-				counter        := counter + 1;
+				counter	       := counter + 1;
 			when 7 =>
 				ram_write_addr := ram_write_addr + 1;
 				counter := counter + 1;
