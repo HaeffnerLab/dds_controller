@@ -18,6 +18,12 @@ entity dds_controller is
 		-- Physical dip switch which identifies this board to the pulser
 		chip_addr:        in std_logic_vector(BUS_ADDR_WIDTH - 1 downto 0);
 
+		-- LEDs
+		led_clk:          out std_logic;
+		led_sdi:          out std_logic;
+		led_le:           out std_logic;
+		led_oe:           out std_logic;
+
 		--- Pins to DDS
 
 		-- Master DDS reset pin
@@ -88,6 +94,8 @@ architecture behavior of dds_controller is
 	signal clk_100: std_logic;
 	-- Divide by 20 of onboard clock
 	signal clk_sys: std_logic;
+
+	signal led_value: std_logic_vector(LED_ARRAY_WIDTH - 1 downto 0);
 	
 	-- DDS serial communication subcomponents
 	
@@ -186,6 +194,10 @@ begin
 	bus_fifo_rd_en  <= fifo_rd_en when bus_addr = chip_addr else 'Z';
 	bus_fifo_rd_clk <= fifo_rd_clk when bus_addr = chip_addr else 'Z';
 	bus_tx_en       <= b"11" when bus_addr = chip_addr else b"00";
+
+	led_value(3 downto 0) <= aux_ram_rd_addr(3 downto 0);
+	led_value(4)          <= bus_fifo_empty;
+	led_value(7 downto 5) <= bus_addr;
 
 	--- Generate other clocks
 	
@@ -697,6 +709,38 @@ begin
 			when 8 =>
 				counter := 0;
 			end case;
+		end if;
+	end process;
+
+	--- LED driver
+
+	led_oe <= '0';
+
+	drive_leds:
+	process (clk_sys, bus_dds_reset)
+		variable count:        natural range 0 to LED_ARRAY_WIDTH;
+		variable led_clk_sync: std_logic;
+	begin
+		if rising_edge(clk_sys) then
+			if count > 0 then
+				led_sdi <= led_value(count - 1);
+				led_le  <= '0';
+			else
+				led_sdi <= led_value(0);
+				led_le  <= '1';
+			end if;
+			if led_clk_sync = '0' then
+				led_clk_sync := '1';
+				led_clk      <= '1';
+			else
+				led_clk_sync := '0';
+				led_clk      <= '0';
+				if count > 0 then
+					count := count - 1;
+				else
+					count := LED_ARRAY_WIDTH;
+				end if;
+			end if;
 		end if;
 	end process;
 end behavior;
