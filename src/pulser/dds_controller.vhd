@@ -12,7 +12,7 @@ use work.pulser_lib.all;
 entity dds_controller is
 	port (
 		-- Board pins
-	
+
 		-- Incoming clock @ 25MHz
 		clock:            in std_logic;
 		-- Physical dip switch which identifies this board to the pulser
@@ -55,7 +55,7 @@ entity dds_controller is
 		dds_cs:           out std_logic;
 
 		--- LVDS bus pins, asynchronous
-		
+
 		-- Master reset for the board
 		bus_dds_reset:   in std_logic;
 		bus_data_in:     in std_logic_vector(DDS_PL_PORT_WIDTH - 1 downto
@@ -87,27 +87,27 @@ architecture behavior of dds_controller is
 		ST_STEP
 	);
 	signal state: dds_state;
-	
+
 	--- Clocks
-	
+
 	-- Runs at 100MHz (or 4 times 25MHz onboard clock speed)
 	signal clk_100: std_logic;
 	-- Divide by 20 of onboard clock
 	signal clk_sys: std_logic;
 
 	signal led_value: std_logic_vector(LED_ARRAY_WIDTH - 1 downto 0);
-	
+
 	-- DDS serial communication subcomponents
-	
+
 	constant SERIAL_BUS_WIDTH: natural := 72;
-	
+
 	signal aux_p2s_reset:  std_logic;
 	signal aux_p2s_sclk:   std_logic;
 	signal aux_p2s_sdo:    std_logic;
 	signal aux_p2s_len:    natural range 1 to SERIAL_BUS_WIDTH;
 	signal aux_p2s_pdi:    std_logic_vector(SERIAL_BUS_WIDTH - 1 downto 0);
 	signal aux_p2s_finish: std_logic;
-	
+
 	constant ROM_PROFILE_WIDTH:      natural := 2 * DDS_WORD_WIDTH +
 			DDS_ADDR_WIDTH;
 	constant ROM_PROFILE_DEPTH:      natural := 8;
@@ -122,10 +122,10 @@ architecture behavior of dds_controller is
 	constant ROM_CONTROL_FN_DEPTH:      natural := 3;
 	constant ROM_CONTROL_FN_ADDR_WIDTH: natural := 2;
 
-	signal aux_rom_profile_addr: std_logic_vector(ROM_PROFILE_ADDR_WIDTH - 1 
+	signal aux_rom_profile_addr: std_logic_vector(ROM_PROFILE_ADDR_WIDTH - 1
 			downto 0);
-	signal aux_rom_profile_q:    std_logic_vector(ROM_PROFILE_WIDTH - 1 
-			downto 0); 
+	signal aux_rom_profile_q:    std_logic_vector(ROM_PROFILE_WIDTH - 1
+			downto 0);
 
 	signal aux_rom_ram_addr: std_logic_vector(ROM_RAM_ADDR_WIDTH - 1 downto 0);
 	signal aux_rom_ram_q:    std_logic_vector(ROM_RAM_WIDTH - 1
@@ -137,13 +137,13 @@ architecture behavior of dds_controller is
 			downto 0);
 
 	--- RAM to hold sequences from pulser
-	
+
 	constant RAM_WR_WIDTH:      natural := 16;
 	constant RAM_WR_ADDR_WIDTH: natural := 11;
-	constant RAM_WR_DEPTH:      natural := 2048;
+	constant RAM_WR_DEPTH:      natural := 128;
 	constant RAM_RD_WIDTH:      natural := 64;
 	constant RAM_RD_ADDR_WIDTH: natural := 9;
-	constant RAM_RD_DEPTH:      natural := 512;
+	constant RAM_RD_DEPTH:      natural := 32;
 
 	signal aux_ram_data:    std_logic_vector(RAM_WR_WIDTH - 1 downto 0);
 	signal aux_ram_wr_addr: std_logic_vector(RAM_WR_ADDR_WIDTH - 1 downto 0);
@@ -160,7 +160,7 @@ architecture behavior of dds_controller is
 	-- [63..32]: FTW
 	-- [31..19]: Amplitude
 	-- [18..16]: Profile
-	--  [15..0]: Phase
+	-- [15...0]: Phase
 	signal ram_out_ftw:     std_logic_vector(DDS_WORD_WIDTH - 1 downto 0);
 	signal ram_out_ampl:    std_logic_vector(RAM_AMPL_WIDTH - 1 downto 0);
 	signal ram_out_profile: std_logic_vector(DDS_PROFILE_SEL_WIDTH - 1 downto
@@ -168,7 +168,7 @@ architecture behavior of dds_controller is
 	signal ram_out_phase:   std_logic_vector(RAM_PHASE_WIDTH - 1 downto 0);
 
 	--- Output buffers
-	
+
 	signal profile_sel: std_logic_vector(DDS_PROFILE_SEL_WIDTH - 1 downto 0);
 
 	signal io_reset:  std_logic;
@@ -180,9 +180,9 @@ architecture behavior of dds_controller is
 
 	signal fifo_rd_en:  std_logic;
 	signal fifo_rd_clk: std_logic;
-	
+
 	--- Interprocess communication
-	
+
 	signal serial_write_complete: boolean := false;
 begin
 
@@ -199,14 +199,18 @@ begin
 	led_value(4)          <= bus_fifo_empty;
 	led_value(7 downto 5) <= bus_addr;
 
+	led_value(3 downto 0) <= aux_ram_rd_addr(3 downto 0);
+	led_value(4)          <= bus_fifo_empty;
+	led_value(7 downto 5) <= bus_addr;
+
 	--- Generate other clocks
-	
+
 	pll_clk: entity work.pll_mf
 	port map (
 		clock,
 		clk_100
 	);
-	
+
 	sys_clk:
 	process (clock)
 		variable count: natural range 0 to 19 := 0;
@@ -279,7 +283,7 @@ begin
 		address => aux_rom_control_fn_addr,
 		q       => aux_rom_control_fn_q
 	);
-	
+
 	state_control:
 	process (clk_100)
 		-- Quick fix: step state should only trigger once RAM output updated
@@ -525,9 +529,16 @@ begin
 		if state = ST_STEP then
 			if rising_edge(clk_100) then
 				if count < 3 then
-					pl_data(15 downto 14) <= (others => '0');
-					pl_data(13 downto 1)  <= ram_out_ampl;
-					pl_data(0)            <= '0';
+					-- This setup means we use the lowest DAC_AMPL_WIDTH (14)
+					-- bits of pl_data to write to the DAC, and align the
+					-- amplitude data from RAM to the highest RAM_AMPL_WIDTH
+					-- (13) bits of that.
+					pl_data(DDS_PL_PORT_WIDTH - 1 downto DAC_AMPL_WIDTH) <=
+							(others => '0');
+					pl_data(DAC_AMPL_WIDTH - 1 downto DAC_AMPL_WIDTH -
+							RAM_AMPL_WIDTH) <= ram_out_ampl;
+					pl_data(DAC_AMPL_WIDTH - RAM_AMPL_WIDTH - 1 downto 0) <=
+							(others => '0');
 				else
 					pl_data <= ram_out_phase;
 				end if;
@@ -558,13 +569,13 @@ begin
 				end case;
 			end if;
 		else
-			pl_data     <= (others => '0');
-			pl_tx_en    <= '0';
-			dac_wre     <= '0';
-			count       := 0;
+			pl_data  <= (others => '0');
+			pl_tx_en <= '0';
+			dac_wre  <= '0';
+			count    := 0;
 		end if;
 	end process;
-	
+
 	dds_signal_control:
 	process (state)
 	begin
