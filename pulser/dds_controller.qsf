@@ -66,7 +66,6 @@ set_location_assignment PIN_73 -to dds_reset
 set_location_assignment PIN_25 -to dds_sclk
 set_location_assignment PIN_27 -to dds_sdo
 set_global_assignment -name ENABLE_SIGNALTAP OFF
-set_global_assignment -name USE_SIGNALTAP_FILE stp1.stp
 set_global_assignment -name POWER_PRESET_COOLING_SOLUTION "23 MM HEAT SINK WITH 200 LFPM AIRFLOW"
 set_global_assignment -name POWER_BOARD_THERMAL_MODEL "NONE (CONSERVATIVE)"
 set_global_assignment -name TIMEQUEST_MULTICORNER_ANALYSIS ON
@@ -133,10 +132,9 @@ set_location_assignment PIN_92 -to bus_tx_en[0]
 set_location_assignment PIN_7 -to chip_addr[2]
 set_location_assignment PIN_8 -to chip_addr[1]
 set_location_assignment PIN_9 -to chip_addr[0]
-set_global_assignment -name SLD_FILE /home/matthew/iontrapgroup/projects/dds_controller_/pulser/stp1_auto_stripped.stp
 set_location_assignment PIN_80 -to led_clk
 set_location_assignment PIN_79 -to led_le
 set_location_assignment PIN_86 -to led_oe
 set_location_assignment PIN_81 -to led_sdi
+set_location_assignment PIN_3 -to kill_switch
 set_instance_assignment -name PARTITION_HIERARCHY root_partition -to | -section_id Top
-set_global_assignment -name SIGNALTAP_FILE stp1.stp

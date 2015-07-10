@@ -17,6 +17,8 @@ entity dds_controller is
 		clock:            in std_logic;
 		-- Physical dip switch which identifies this board to the pulser
 		chip_addr:        in std_logic_vector(BUS_ADDR_WIDTH - 1 downto 0);
+		-- Soft reset for debugging
+		kill_switch:      in std_logic;
 
 		-- LEDs
 		led_clk:          out std_logic;
@@ -88,16 +90,23 @@ architecture behavior of dds_controller is
 	);
 	signal state: dds_state;
 
-	--- Clocks
+	--- Device internals
+
+	-- Combined reset command
+	signal master_reset: std_logic;
+
+	-- Clocks
 
 	-- Runs at 100MHz (or 4 times 25MHz onboard clock speed)
 	signal clk_100: std_logic;
 	-- Divide by 20 of onboard clock
 	signal clk_sys: std_logic;
 
+	-- LED
+
 	signal led_value: std_logic_vector(LED_ARRAY_WIDTH - 1 downto 0);
 
-	-- DDS serial communication subcomponents
+	--- DDS serial communication subcomponents
 
 	constant SERIAL_BUS_WIDTH: natural := 72;
 
@@ -155,6 +164,7 @@ architecture behavior of dds_controller is
 	constant RAM_AMPL_WIDTH:  natural := 13;
 	constant RAM_PHASE_WIDTH: natural := 16;
 
+
 	-- RAM output signals
 	-- Each 64 bit block from RAM is organized as follows:
 	-- [63..32]: FTW
@@ -188,16 +198,14 @@ begin
 
 	--- Combinatorial signals
 
+	master_reset <= bus_dds_reset or kill_switch;
+
 	dds_cs <= '0';
 
 	-- It is important that these two be high Z when not communicating
 	bus_fifo_rd_en  <= fifo_rd_en when bus_addr = chip_addr else 'Z';
 	bus_fifo_rd_clk <= fifo_rd_clk when bus_addr = chip_addr else 'Z';
 	bus_tx_en       <= b"11" when bus_addr = chip_addr else b"00";
-
-	led_value(3 downto 0) <= aux_ram_rd_addr(3 downto 0);
-	led_value(4)          <= bus_fifo_empty;
-	led_value(7 downto 5) <= bus_addr;
 
 	led_value(3 downto 0) <= aux_ram_rd_addr(3 downto 0);
 	led_value(4)          <= bus_fifo_empty;
@@ -213,13 +221,13 @@ begin
 
 	sys_clk:
 	process (clock)
-		variable count: natural range 0 to 19 := 0;
+		variable count: natural range 0 to 20 := 0;
 	begin
 		if rising_edge(clock) then
 			if count < 10 then
 				count   := count + 1;
 				clk_sys <= '0';
-			elsif count < 19 then
+			elsif count < 20 then
 				count   := count + 1;
 				clk_sys <= '1';
 			else
@@ -291,25 +299,20 @@ begin
 		variable ram_out_var: std_logic_vector(RAM_RD_WIDTH - 1 downto 0)
 				:= (others => '0');
 	begin
-		if bus_dds_reset = '1' then
+		if master_reset = '1' then
 			state <= ST_STANDBY;
 		elsif rising_edge(clk_100) then
 			case state is
 			when ST_STANDBY =>
-				profile_sel <= (others => '0');
 				ram_out_var := (others => '0');
 				state <= ST_INIT;
 			when ST_INIT =>
-				profile_sel <= (others => '0');
 				if serial_write_complete = true then
 					state <= ST_ACTIVE;
 				else
 					state <= ST_INIT;
 				end if;
 			when ST_ACTIVE =>
-				if serial_write_complete = true then
-					profile_sel <= ram_out_profile;
-				end if;
 				if ram_out_var /= aux_ram_q then
 					ram_out_var := aux_ram_q;
 					state <= ST_STEP;
@@ -317,9 +320,6 @@ begin
 					state <= ST_ACTIVE;
 				end if;
 			when ST_STEP =>
-				if serial_write_complete = true then
-					profile_sel <= ram_out_profile;
-				end if;
 				if serial_write_complete = true then
 					state <= ST_ACTIVE;
 				else
@@ -341,6 +341,8 @@ begin
 			ram_out_phase   <= ram_out_var(15 downto 0);
 		end if;
 	end process;
+
+	profile_sel <= ram_out_profile;
 
 	-- See common/dds_lib for the meaning of all the procedures
 	dds_serial_control:
@@ -370,7 +372,6 @@ begin
 				aux_p2s_pdi             <= (others => '0');
 				aux_rom_ram_addr        <= (others => '0');
 				aux_rom_control_fn_addr <= (others => '0');
-				aux_rom_profile_addr    <= (others => '0');
 			when ST_INIT =>
 				case serial_state is
 				when ST_WRITE_INIT_PROFILE =>
@@ -653,7 +654,7 @@ begin
 	process (bus_step, bus_ram_reset)
 		variable addr_counter: natural range 0 to RAM_RD_DEPTH - 1 := 0;
 	begin
-		if bus_dds_reset = '1' or bus_ram_reset = '1' then
+		if master_reset = '1' or bus_ram_reset = '1' then
 			addr_counter := 0;
 		elsif rising_edge(bus_step) then
 			addr_counter := addr_counter + 1;
@@ -665,12 +666,13 @@ begin
 	-- Drive RAM read clock to continuously refresh output values; keep
 	-- querying the FIFO for data and transfer to onboard RAM until FIFO is
 	-- empty
+	-- Magic, do not touch
 	ram_control:
-	process (clk_sys, bus_ram_reset, bus_dds_reset)
+	process (clk_sys, bus_ram_reset, master_reset)
 		variable ram_write_addr: natural range 0 to RAM_WR_DEPTH - 1 := 0;
-		variable counter:        natural range 0 to 8 := 0;
+		variable counter:        natural range 0 to 9 := 0;
 	begin
-		if bus_dds_reset = '1' or bus_ram_reset = '1' then
+		if master_reset = '1' or bus_ram_reset = '1' then
 			ram_write_addr := 0;
 			counter := 0;
 			fifo_rd_clk <= '0';
@@ -689,36 +691,42 @@ begin
 				counter	      := counter + 1;
 			when 1 =>
 				fifo_rd_clk <= '0';
+				counter := counter + 1;
+			when 2 =>
 				if bus_addr = chip_addr and bus_fifo_empty /= '1' then
 					counter := counter + 1;
 				else
 					counter := 0;
 				end if;
-			when 2 =>
+			when 3 =>
 				fifo_rd_en <= '1';
 				counter	   := counter + 1;
-			when 3 =>
+			when 4 =>
 				fifo_rd_clk    <= '1';
-				aux_ram_wr_en  <= '1';
+				aux_ram_wr_en <= '1';
 				aux_ram_wr_clk <= '1';
 				counter        := counter + 1;
-			when 4 =>
+			when 5 =>
 				fifo_rd_clk <= '0';
 				counter	    := counter + 1;
 			-- Set data to write
-			when 5 =>
+			when 6 =>
 				aux_ram_wr_addr <= std_logic_vector(to_unsigned
 						(ram_write_addr, RAM_WR_ADDR_WIDTH));
 				aux_ram_data <= bus_data_in;
 				counter	     := counter + 1;
-			when 6 =>
+			when 7 =>
 				aux_ram_wr_clk <= '0';
 				counter	       := counter + 1;
-			when 7 =>
+			when 8 =>
 				ram_write_addr := ram_write_addr + 1;
 				counter := counter + 1;
-			when 8 =>
-				counter := 0;
+			when 9 =>
+				if bus_fifo_empty /= '1' then
+					counter := 3;
+				else
+					counter := 0;
+				end if;
 			end case;
 		end if;
 	end process;
@@ -728,7 +736,7 @@ begin
 	led_oe <= '0';
 
 	drive_leds:
-	process (clk_sys, bus_dds_reset)
+	process (clk_sys, master_reset)
 		variable count:        natural range 0 to LED_ARRAY_WIDTH;
 		variable led_clk_sync: std_logic;
 	begin
