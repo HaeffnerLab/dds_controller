@@ -21,3 +21,6 @@ project the folder is named after.
 
 Be sure to program the device through the SignalTap interface, because that
 always seems to work.
+
+When changing the data in the RAM mif files, the altera quartus program will not update 
+the design until you delete the `db` and `db_incremental` folders in the `pulser` folder.
