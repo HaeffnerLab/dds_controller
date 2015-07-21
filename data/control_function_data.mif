@@ -1,0 +1,11 @@
+width=40;
+depth=3;
+
+address_radix=hex;
+data_radix=hex;
+
+content begin
+	0: 00c0000000;
+	1: 0100400070;
+	2: 021738c000;
+end;

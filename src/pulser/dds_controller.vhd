@@ -55,7 +55,7 @@ entity dds_controller is
 				(DDS_PROFILE_SEL_WIDTH - 1 downto 0);
 		-- Chip select bar
 		dds_cs:           out std_logic;
-
+		dds_pdclk:			in  std_logic;
 		--- LVDS bus pins, asynchronous
 
 		-- Master reset for the board
@@ -327,13 +327,13 @@ begin
 				end if;
 			end case;
 
-			ram_out_ftw     <= ram_out_var(RAM_RD_WIDTH - 1 downto RAM_RD_WIDTH
-					- DDS_WORD_WIDTH);
-			ram_out_ampl    <= ram_out_var(DDS_WORD_WIDTH - 1 downto
-					DDS_WORD_WIDTH - RAM_AMPL_WIDTH);
-			ram_out_profile <= ram_out_var(RAM_PHASE_WIDTH + 2 downto
-					RAM_PHASE_WIDTH);
-			ram_out_phase   <= ram_out_var(RAM_PHASE_WIDTH - 1 downto 0);
+--			ram_out_ftw     <= ram_out_var(RAM_RD_WIDTH - 1 downto RAM_RD_WIDTH
+--					- DDS_WORD_WIDTH);
+--			ram_out_ampl    <= ram_out_var(DDS_WORD_WIDTH - 1 downto
+--					DDS_WORD_WIDTH - RAM_AMPL_WIDTH);
+--			ram_out_profile <= ram_out_var(RAM_PHASE_WIDTH + 2 downto
+--					RAM_PHASE_WIDTH);
+--			ram_out_phase   <= ram_out_var(RAM_PHASE_WIDTH - 1 downto 0);
 
 			ram_out_ftw     <= ram_out_var(63 downto 32);
 			ram_out_ampl    <= ram_out_var(31 downto 19);
@@ -522,10 +522,10 @@ begin
 	end process;
 
 	pl_dest <= "01"; -- Currently never needs to be changed
-
+	dds_pl_dest <= pl_dest;
 	dds_parallel_control:
 	process (clk_100)
-		variable count: natural range 0 to 5 := 0;
+		variable count: natural range 0 to 7 := 0;
 	begin
 		if state = ST_STEP then
 			if rising_edge(clk_100) then
@@ -565,8 +565,17 @@ begin
 					dac_wre  <= '0';
 					count    := count + 1;
 				when 5 =>
-					pl_tx_en <= '0';
+					pl_tx_en <= '1';
 					dac_wre  <= '0';
+					count    := count + 1;
+				when 6 =>
+					pl_tx_en <= '1';
+					dac_wre  <= '0';
+					count    := count + 1;			
+				when 7 =>
+					pl_tx_en <= '0';
+					dac_wre  <= '0';	
+					
 				end case;
 			end if;
 		else
@@ -589,7 +598,7 @@ begin
 				dds_io_update <= '0';
 				dds_profile_sel <= (others => '0');
 				dds_pdo         <= (others => '0');
-				dds_pl_dest     <= (others => '0');
+				--dds_pl_dest     <= (others => '0');
 				dds_pl_tx_en    <= '0';
 				dds_dac_wre     <= '0';
 			when ST_INIT =>
@@ -600,7 +609,7 @@ begin
 				dds_io_update <= io_update;
 				dds_profile_sel <= (others => '0');
 				dds_pdo         <= (others => '0');
-				dds_pl_dest     <= (others => '0');
+				--dds_pl_dest     <= (others => '0');
 				dds_pl_tx_en    <= '0';
 				dds_dac_wre     <= '0';
 			when ST_ACTIVE =>
@@ -611,7 +620,7 @@ begin
 				dds_io_update <= '0';
 				dds_profile_sel <= profile_sel;
 				dds_pdo         <= (others => '0');
-				dds_pl_dest     <= (others => '0');
+				--dds_pl_dest     <= (others => '0');
 				dds_pl_tx_en    <= '0';
 				dds_dac_wre     <= '0';
 			when ST_STEP =>
@@ -622,7 +631,7 @@ begin
 				dds_io_update <= io_update;
 				dds_profile_sel <= profile_sel;
 				dds_pdo         <= pl_data;
-				dds_pl_dest     <= pl_dest;
+				--dds_pl_dest     <= pl_dest;
 				dds_pl_tx_en    <= pl_tx_en;
 				dds_dac_wre     <= dac_wre;
 		end case;

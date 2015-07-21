@@ -29,9 +29,11 @@ control_functions:
       pdclk_en:
         bits:    11
         default: true
+        value: false
       pd_hold_last:
         bits:    6
         default: false
+        value: true
       sync_timing_validate:
         bits: 5
         default: true
