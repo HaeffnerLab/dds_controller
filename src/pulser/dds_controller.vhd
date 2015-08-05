@@ -149,10 +149,10 @@ architecture behavior of dds_controller is
 
 	constant RAM_WR_WIDTH:      natural := 16;
 	constant RAM_WR_ADDR_WIDTH: natural := 11;
-	constant RAM_WR_DEPTH:      natural := 128;
+	constant RAM_WR_DEPTH:      natural := 2048;
 	constant RAM_RD_WIDTH:      natural := 64;
 	constant RAM_RD_ADDR_WIDTH: natural := 9;
-	constant RAM_RD_DEPTH:      natural := 32;
+	constant RAM_RD_DEPTH:      natural := 512;
 
 	signal aux_ram_data:    std_logic_vector(RAM_WR_WIDTH - 1 downto 0);
 	signal aux_ram_wr_addr: std_logic_vector(RAM_WR_ADDR_WIDTH - 1 downto 0);
